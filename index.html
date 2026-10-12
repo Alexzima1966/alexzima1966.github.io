@@ -322,6 +322,7 @@
       <div class="mbox"><h4>📊 Live-статистика матча</h4><div id="mStats"></div></div>
       <div class="mbox"><h4>🕒 Таймлайн</h4><div id="mTimeline" class="tl"></div></div>
     </div>
+    <div class="mbox" style="margin-top:12px"><h4>🆕 Flashscore API: травмы · турнирная таблица · составы · форма</h4><div id="mExtra" class="dim" style="font-size:12px">Откройте карточку матча — данные подгрузятся автоматически.</div></div>
 
     <div style="display:flex;gap:10px;margin-top:16px;justify-content:flex-end">
       <button onclick="document.getElementById('modalOv').classList.remove('show')">Принято ✔</button>
@@ -372,10 +373,11 @@
   <p><b>1. Профиль 76-90' по реальным минутам.</b> История последних N матчей команды берется <b>одним запросом</b> <code>POST /Games/query</code> (Condition <code>HomeTeam = X OR AwayTeam = X</code>, Fields Id/Date/ScoreHomeHT/ScoreAwayHT/ScoreHomeFT/ScoreAwayFT, Order <code>-Date</code>), с фолбэком на <code>/Games/list?Team=X&Ended=true</code>. Затем для каждого матча грузятся <code>events</code> через <code>/Games/{id}</code> и кэшируются в IndexedDB навсегда — голы раскладываются по интервалам <b>по фактической минуте</b> (elapsed + extra, с учетом Own Goal). Если events недоступны, матч помечается и профиль получает бейдж «approx» — это честно показывается в UI.</p>
   <p><b>2. Удары в створ</b> — только из реальной live-статистики <code>ApiSaStatistics.shotsOnGoalHome/Away</code> (<code>/Games/{id}</code>, обновление каждую минуту; опциональный ускоритель Pari.ru — 10 сек). Матчи без данных исключаются, «0 (0:0)» не допускается как сигнал.</p>
   <p><b>3. Live-кэфы.</b> <code>/Odds/live/{gameId}</code> (Bet365): из всех маркетов ищется исход «Over {line}», где line = текущий тотал + 0.5. Кэф подставляется в сигнал, журнал и EV-калькулятор. При >12 кандидатах используется <code>/Odds/live-changes/updates-only</code> — обновляем только изменившиеся.</p>
-  <p><b>4. Модель вероятности.</b> Ожидаемые голы в оставшееся время: λ = λ(хозяева) + λ(гости), где λ(сторона) = среднее из «голи стороны после минуты m» и «пропущенные соперника после m» (реальные минуты голов), с множителями: срочность счета (1.0–1.22), красные карточки (×1.25/×0.78), атаки замен 55–75' (×1.08), интенсивность ударов/мин (0.85–1.25), xG-приор Glicko <code>/Games/glicko/{id}</code> (0.8–1.3). P = 1 − e^(−λ).</p>
+  <p><b>4. Модель вероятности.</b> Ожидаемые голы в оставшееся время: λ = λ(хозяева) + λ(гости), где λ(сторона) = среднее из «голи стороны после минуты m» и «пропущенные соперника после m» (реальные минуты голов), с множителями: срочность счета (1.0–1.22), красные карточки (×1.25/×0.78), атаки замен 55–75' (×1.08), интенсивность ударов/мин (0.85–1.25), xG-приор Glicko <code>/Games/glicko/{id}</code> (0.8–1.3), momentum Flashscore (асимметрия λ 0.85–1.2 по давлению сторон за последние 15 мин). P = 1 − e^(−λ).</p>
   <p><b>5. Value-гейт.</b> Edge = P(модели) − 1/кэф, в процентных пунктах. Сигнал требует edge ≥ порога при доступном кэфе. Если кэф недоступен — сигнал удерживается до 74' и затем помечается «без кэфа».</p>
   <p><b>6. Закрытие сигналов.</b> Пакетно через <code>GET /Excel/Results?id=a,b,c&header=false</code> (до 500 матчей за запрос, CSV), с фолбэком на <code>/Games/list?Id=...</code>. Журнал больше не зависает в «ожидании».</p>
   <p><b>7. Лимиты и безопасность.</b> Rate-limiter с приоритетами (радар → кэфы → история), API-ключ отправляется только на собственный прокси или напрямую — публичные CORS-прокси его не получают. Профили и events кэшируются в IndexedDB.</p>
+  <p><b>8. Новое Flashscore API (v0.9.42).</b> <b>Momentum</b> — <code>GET /Ls/GameMomentum?id={flashId}</code>: доля давления хозяев/гостей за последние 15 минут, множитель асимметрии в модели + строка в сигнале + бар в карточке (TTL 2 мин, только кандидаты 2-го тайма, бюджет 6 запросов/цикл). <b>Травмы</b> — <code>GET /Games/injuries?gameId=</code>: один запрос в момент сигнала, попадают в карточку и журнал. <b>Турнирная таблица</b> — <code>GET /Games/season-table?league=&year=</code> (кэш 1 час): ранги/очки/мячи обеих команд в карточке. <b>Составы с рейтингами игроков</b> — <code>GET /Ls/GameLineups?id={flashId}</code>: средний рейтинг и топ-игроки. <b>Форма и средние</b> — <code>GET /Games/last-games-stats?gameId=&limit=</code>: голы/xG/удары/форма за последние N матчей. Все «карточные» запросы идут по требованию при открытии карточки (приоритет 2) и не тратят бюджет радара.</p>
 </details>
 
 <details>
@@ -1035,6 +1037,217 @@ async function fetchGlicko(gameId){
     return unwrap(res);
   } catch(e){ return null; }
 }
+
+/* ---------------- 10b. НОВОЕ FLASHSCORE API (v0.9.42) ----------------
+   Momentum, травмы, турнирная таблица, предматчевая статистика, составы.
+   Momentum — только для кандидатов 2-го тайма (TTL 2 мин), остальное —
+   по требованию при открытии карточки. Бюджет запросов соблюдается через LIM. */
+const MOM_TTL = 120000; /* momentum пересобираем раз в 2 минуты */
+
+/* Momentum: динамика давления Flashscore — GET /Ls/GameMomentum?id={flashId}.
+   Итог — доля давления хозяев/гостей за последние ~15 минут матча
+   (положительные значения = давление хозяев, отрицательные = гостей). */
+async function fetchMomentum(flashId){
+  try {
+    const res = await apiGet('/Ls/GameMomentum?id=' + encodeURIComponent(flashId), { priority: 1 });
+    const d = unwrap(res);
+    if (!d || !Array.isArray(d.points) || !d.points.length) return null;
+    let lastMin = 0;
+    for (const p of d.points){ const em = num(p.elapsedMinute) || 0; if (em > lastMin) lastMin = em; }
+    const from = Math.max(0, lastMin - 15);
+    let pos = 0, neg = 0;
+    for (const p of d.points){
+      const em = num(p.elapsedMinute) || 0;
+      if (em < from) continue;
+      const v = num(p.momentumValue) || 0;
+      if (v > 0) pos += v; else if (v < 0) neg += -v;
+    }
+    if (pos + neg <= 0) return null;
+    const homeShare = Math.round(100 * pos / (pos + neg));
+    return { ts: Date.now(), homeShare, awayShare: 100 - homeShare, upto: lastMin };
+  } catch(e){ return null; }
+}
+
+/* Травмы/дисквалификации: GET /Games/injuries?gameId= (1 запрос в момент сигнала) */
+async function fetchInjuries(gameId){
+  try {
+    const res = await apiGet('/Games/injuries?gameId=' + gameId, { priority: 2 });
+    const arr = unwrap(res);
+    if (!Array.isArray(arr)) return null;
+    return arr.map(x => ({
+      player: (x.player && (x.player.name || x.player.shortName)) || 'игрок',
+      teamId: num(x.teamId), reason: String(x.reason || '')
+    }));
+  } catch(e){ return null; }
+}
+
+/* Турнирная таблица (рейтинговая): GET /Games/season-table?league=&year= — кэш 1 час */
+const TABLE_CACHE = new Map();
+async function fetchSeasonTable(leagueId, year){
+  if (leagueId == null || year == null) return null;
+  const k = leagueId + '_' + year;
+  const c = TABLE_CACHE.get(k);
+  if (c && Date.now() - c.ts < 3600000) return c.data;
+  try {
+    const res = await apiGet('/Games/season-table?league=' + leagueId + '&year=' + year, { priority: 2 });
+    const d = unwrap(res);
+    let rows = null;
+    if (Array.isArray(d)) rows = d;
+    else if (d && Array.isArray(d.rows)) rows = d.rows;
+    else if (d && Array.isArray(d.teams)) rows = d.teams;
+    if (!rows) return null;
+    const get = (r, names) => { for (const n of names){ const v = num(r[n]); if (v != null) return v; } return null; };
+    const map = new Map();
+    for (const r of rows){
+      if (!r || typeof r !== 'object') continue;
+      const id = get(r, ['teamId', 'TeamId', 'id', 'Id']);
+      if (id == null) continue;
+      map.set(id, {
+        rank: get(r, ['rank', 'Rank']), points: get(r, ['points', 'Points']),
+        wins: get(r, ['wins', 'Wins']), games: get(r, ['totalGames', 'TotalGames']),
+        scored: get(r, ['goalsScored', 'GoalsScored']), missed: get(r, ['goalsMissed', 'GoalsMissed'])
+      });
+    }
+    TABLE_CACHE.set(k, { ts: Date.now(), data: map });
+    return map;
+  } catch(e){ return null; }
+}
+
+/* Предматчевая статистика обеих команд: GET /Games/last-games-stats?gameId=&limit=
+   (средние голы/xG/удары/форма; схемы ответа в OpenAPI нет — парсим защитно) */
+async function fetchLastGamesStats(gameId){
+  try {
+    const res = await apiGet('/Games/last-games-stats?gameId=' + gameId + '&limit=' + CFG.depth, { priority: 2 });
+    const d = unwrap(res);
+    if (!d || typeof d !== 'object') return null;
+    return { home: (d.home && typeof d.home === 'object') ? d.home : null,
+             away: (d.away && typeof d.away === 'object') ? d.away : null };
+  } catch(e){ return null; }
+}
+
+/* Составы с рейтингами игроков: GET /Ls/GameLineups?id={flashId} (по требованию) */
+async function fetchLineups(flashId){
+  try {
+    const res = await apiGet('/Ls/GameLineups?id=' + encodeURIComponent(flashId), { priority: 2 });
+    const d = unwrap(res);
+    if (!d || typeof d !== 'object') return null;
+    const side = (x) => {
+      if (!x || typeof x !== 'object') return null;
+      let players = Array.isArray(x) ? x : (x.players || x.lineup || x.startingXI || null);
+      if (players && !Array.isArray(players)){
+        /* возможна группировка по формациям/группам — разворачиваем */
+        const flat = [];
+        for (const kk of Object.keys(players)){
+          const g = players[kk];
+          if (Array.isArray(g)) flat.push(...g);
+        }
+        players = flat.length ? flat : null;
+      }
+      if (!Array.isArray(players) || !players.length) return null;
+      let sum = 0, n = 0;
+      const rated = [];
+      for (const p of players){
+        const r = num(p.rating != null ? p.rating : (p.avgRating != null ? p.avgRating : p.playerRating));
+        const nm = p.player ? (p.player.name || p.player.shortName) : (p.name || p.playerName || p.shortName);
+        if (r != null && r > 0){ sum += r; n++; rated.push({ nm: String(nm || '—'), r }); }
+      }
+      if (!n) return null;
+      rated.sort((a, b) => b.r - a.r);
+      return { avg: sum / n, count: players.length, top: rated.slice(0, 3) };
+    };
+    let h = side(d.home), a = side(d.away);
+    if (!h && !a){
+      /* альтернативные обертки: homeTeam/awayTeam или lineups {home, away} */
+      if (d.homeTeam) h = side(d.homeTeam);
+      if (d.awayTeam) a = side(d.awayTeam);
+      if ((!h || !a) && d.lineups && typeof d.lineups === 'object'){
+        h = h || side(d.lineups.home); a = a || side(d.lineups.away);
+      }
+    }
+    if (!h && !a) return null;
+    return { home: h, away: a };
+  } catch(e){ return null; }
+}
+
+/* ---------- рендер нового API в карточке ---------- */
+/* Бар momentum-лайв (доля давления сторон) */
+function liveMomentumHtml(mo){
+  if (!mo || mo.homeShare == null) return '';
+  const hs = mo.homeShare;
+  const dom = hs >= 60 ? 'хозяева давят' : (hs <= 40 ? 'гости давят' : 'баланс');
+  return '<div style="margin-bottom:10px">' +
+    '<div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">' +
+    '<span style="color:var(--green)">🏠 ' + hs + '%</span>' +
+    '<span class="dim">Momentum-лайв · до ' + (mo.upto || '—') + "' · " + dom + '</span>' +
+    '<span style="color:var(--blue)">' + mo.awayShare + '% ✈️</span></div>' +
+    '<div style="height:8px;border-radius:4px;background:var(--blue);overflow:hidden">' +
+    '<div style="height:8px;width:' + hs + '%;background:var(--green);float:left"></div></div></div>';
+}
+function injuriesHtml(inj, teamH, teamA){
+  if (inj == null) return '<span class="dim">н/д</span>';
+  if (!inj.length) return '<span class="dim">все игроки в строю ✔</span>';
+  const h = inj.filter(x => x.teamId != null && x.teamId === teamH);
+  const a = inj.filter(x => x.teamId != null && x.teamId === teamA);
+  const lst = arr => arr.map(x => esc(x.player) + (x.reason ? ' <span class="dim">(' + esc(x.reason) + ')</span>' : '')).join(', ') || '—';
+  return '🏠 ' + h.length + ': ' + lst(h) + '<br>✈️ ' + a.length + ': ' + lst(a);
+}
+function tableRowHtml(tbl, teamId, label){
+  const t = (tbl && teamId != null) ? tbl.get(teamId) : null;
+  if (!t) return '<span class="dim">' + label + ': н/д</span>';
+  return '<span>' + label + ': <b>#' + (t.rank != null ? t.rank : '—') + '</b>' +
+    (t.points != null ? ' · ' + t.points + ' pts' : '') +
+    (t.games != null ? ' · ' + t.games + ' игр' : '') +
+    (t.scored != null && t.missed != null ? ' · мячи ' + t.scored + ':' + t.missed : '') + '</span>';
+}
+function lineupSideHtml(s, label){
+  if (!s) return '<span class="dim">' + label + ': н/д</span>';
+  const top = (s.top || []).map(p => esc(p.nm) + ' <b>' + (Math.round(p.r * 10) / 10) + '</b>').join(', ');
+  return '<span>' + label + ': ср. рейтинг <b>' + (Math.round(s.avg * 10) / 10) + '</b> (' + s.count + ' игр.)</span>' +
+    (top ? '<br><span class="dim">Топ: ' + top + '</span>' : '');
+}
+function lgStatsSideHtml(x, label){
+  if (!x || typeof x !== 'object') return null;
+  const keys = Object.keys(x).filter(k => /goal|xg|shot|corner|card|win|draw|loss|form|game/i.test(k)).slice(0, 8);
+  const rows = [];
+  for (const k of keys){
+    const v = x[k];
+    if (typeof v === 'number') rows.push(esc(k) + ': <b>' + (Math.round(v * 100) / 100) + '</b>');
+    else if (typeof v === 'string' && v.length > 0 && v.length <= 12) rows.push(esc(k) + ': <b>' + esc(v) + '</b>');
+    else if (v && typeof v === 'object'){
+      const sub = Object.keys(v).filter(kk => typeof v[kk] === 'number').slice(0, 4)
+        .map(kk => kk + ' ' + v[kk]).join(' · ');
+      if (sub) rows.push(esc(k) + ': <b>' + sub + '</b>');
+    }
+  }
+  if (!rows.length) return null;
+  return '<div style="font-size:11.5px;line-height:1.7">' + label + '<br>' + rows.join('<br>') + '</div>';
+}
+/* Дон-загрузка карточки: травмы + таблица + составы + форма (по требованию, приоритет 2) */
+async function loadCardExtras(c){
+  const box = $('mExtra');
+  if (!box || !c || c.mId == null) return;
+  box.innerHTML = '<span class="dim">Загрузка данных нового API…</span>';
+  const [injR, tblR, lgsR, luR] = await Promise.allSettled([
+    Array.isArray(c.injuries) ? Promise.resolve(c.injuries) : fetchInjuries(c.mId),
+    fetchSeasonTable(c.leagueId, c.seasonYear),
+    fetchLastGamesStats(c.mId),
+    c.flashId ? fetchLineups(c.flashId) : Promise.resolve(null)
+  ]);
+  if (activeCard !== c) return; /* карточка уже закрыта или открыта другая */
+  const inj = injR.status === 'fulfilled' ? injR.value : null;
+  const tbl = tblR.status === 'fulfilled' ? tblR.value : null;
+  const lgs = lgsR.status === 'fulfilled' ? lgsR.value : null;
+  const lu = luR.status === 'fulfilled' ? luR.value : null;
+  const lH = lgs ? lgStatsSideHtml(lgs.home, '🏠') : null;
+  const lA = lgs ? lgStatsSideHtml(lgs.away, '✈️') : null;
+  box.innerHTML =
+    '<div style="font-size:11.5px;line-height:1.7"><b>🏥 Травмы/дисквалификации</b><br>' + injuriesHtml(inj, c.teamH, c.teamA) + '</div>' +
+    '<div style="font-size:11.5px;line-height:1.7;margin-top:8px"><b>🏆 Турнирное положение (рейтинговая таблица)</b><br>' +
+    tableRowHtml(tbl, c.teamH, '🏠') + '<br>' + tableRowHtml(tbl, c.teamA, '✈️') + '</div>' +
+    '<div style="font-size:11.5px;line-height:1.7;margin-top:8px"><b>📋 Составы · рейтинги игроков Flashscore</b><br>' +
+    lineupSideHtml(lu && lu.home, '🏠') + '<br>' + lineupSideHtml(lu && lu.away, '✈️') + '</div>' +
+    ((lH || lA) ? '<div style="font-size:11.5px;line-height:1.7;margin-top:8px"><b>📈 Форма и средние (посл. ' + CFG.depth + ' матчей)</b><br>' + (lH || '') + ((lH && lA) ? '<br>' : '') + (lA || '') + '</div>' : '');
+}
 function buildModel(entry, R){
   const m = entry.m;
   const minute = R.minute || CFG.minMin;
@@ -1077,6 +1290,15 @@ function buildModel(entry, R){
     gScale = clamp((num(entry.glicko.homeXg) + num(entry.glicko.awayXg)) / 2.6, 0.8, 1.3);
     lamH *= gScale; lamA *= gScale;
     factors.push(['xG-приор Glicko (' + (num(entry.glicko.homeXg) + num(entry.glicko.awayXg)).toFixed(2) + ')', '×' + gScale.toFixed(2)]);
+  }
+
+  /* Momentum (Flashscore API): давление сторон за последние 15 минут */
+  if (entry.momentum && entry.momentum.homeShare != null){
+    const hs = entry.momentum.homeShare;
+    const mH = clamp(1 + (hs - 50) / 55, 0.85, 1.2);
+    const mA = clamp(1 - (hs - 50) / 55, 0.8, 1.15);
+    lamH *= mH; lamA *= mA;
+    factors.push(['📈 Momentum ' + hs + '% / ' + (100 - hs) + '% (посл. 15 мин)', '×' + mH.toFixed(2) + ' / ×' + mA.toFixed(2)]);
   }
 
   lamH = clamp(lamH, 0.02, 1.6); lamA = clamp(lamA, 0.02, 1.6);
@@ -1138,6 +1360,9 @@ async function evaluate(entry, quick){
   const losingSide = curH < curA ? 'home' : (curA < curH ? 'away' : null);
   R.attSubs = evs.filter(e => Number(e.type) === 3 && (num(e.elapsed) || 0) >= 55 && (num(e.elapsed) || 0) <= 75 &&
     (!losingSide || (num(e.teamId) === homeId ? 'home' : 'away') === losingSide)).length;
+
+  /* Momentum (Flashscore): давление сторон за последние 15 минут (кэш entry.momentum) */
+  R.momentum = (entry.momentum && entry.momentum.homeShare != null) ? entry.momentum : null;
 
   /* Профили (реальные минуты): запускаем для ВСЕХ матчей 2-го тайма,
      чтобы в радаре были флаги 76-90' и P(модели) по каждому матчу.
@@ -1279,6 +1504,12 @@ function fireSignal(entry, R){
     lamA: R.model ? Math.round(R.model.lamA * 100) / 100 : null,
     flagsCount: R.flagsCount, values: R.values, flags: R.flags, perGame: R.perGame || null,
     quality: R.quality, reds: R.reds, attSubs: R.attSubs,
+    momentum: R.momentum || null,
+    teamH: m.homeTeam ? num(m.homeTeam.id) : null, teamA: m.awayTeam ? num(m.awayTeam.id) : null,
+    leagueId: (m.season && m.season.league) ? num(m.season.league.id) : null,
+    seasonYear: m.season ? num(m.season.year) : null,
+    flashId: m.flashId || null,
+    injuries: null,
     glicko: entry.glicko || null,
     flat: CFG.flat, status: 'pending', final: null, profit: 0,
     detail: { statsRows: mergedStats(entry), timeline: timelineHtml(entry), profH: R.profH, profA: R.profA }
@@ -1289,6 +1520,14 @@ function fireSignal(entry, R){
   notifySignal(sig);
   showSignalCard(sig.id);
   beep();
+  /* Травмы (Flashscore API): 1 запрос сразу после сигнала — дописываем в журнал
+     и в открытую карточку, не задерживая само уведомление */
+  fetchInjuries(m.id).then(inj => {
+    if (inj == null) return;
+    sig.injuries = inj;
+    saveJournal(); renderJournal();
+    if (activeCard && activeCard.sigId === sig.id) showSignalCard(sig.id);
+  }).catch(() => {});
 }
 
 async function sendNtfy(title, body){
@@ -1330,6 +1569,7 @@ function notifySignal(s){
     '✅ Удары: ' + s.totalSoG + ' (' + s.soH + ':' + s.soA + '), норма ≥' + CFG.minShots,
     "🎯 Прогноз: ТБ " + s.line + " / Гол в концовке 76-90'",
     "🔥 " + s.flagsCount + "/4 флага за 76-90'",
+    (s.momentum && s.momentum.homeShare != null ? '📈 Momentum: Хоз ' + s.momentum.homeShare + '% | Гости ' + s.momentum.awayShare + '% (посл. 15 мин)' : ''),
     hasH ? '🏠 Хозяева: Заб ' + pg.hLateGet + '% · Проп ' + pg.hLateMiss + '%' : '🏠 Хозяева: профиль н/д',
     hasA ? '✈️ Гости: Заб ' + pg.aLateGet + '% · Проп ' + pg.aLateMiss + '%' : '✈️ Гости: профиль н/д',
     synH != null ? '⚡ Синергия: Хоз ' + synH + '% | Гости ' + synA + '%' : '',
@@ -1346,6 +1586,7 @@ function notifySignal(s){
     '✅ Удары: <b>' + s.totalSoG + '</b> (' + s.soH + ':' + s.soA + '), норма ≥' + CFG.minShots + '\n' +
     "🎯 Прогноз: <b>ТБ " + s.line + "</b> / Гол в концовке 76-90'\n" +
     "🔥 <b>" + s.flagsCount + "/4</b> флага за 76-90'\n" +
+    (s.momentum && s.momentum.homeShare != null ? '📈 Momentum: Хоз ' + s.momentum.homeShare + '% | Гости ' + s.momentum.awayShare + '%\n' : '') +
     (hasH ? '🏠 Хозяева: Заб ' + pg.hLateGet + '% · Проп ' + pg.hLateMiss + '%\n' : '🏠 Хозяева: профиль н/д\n') +
     (hasA ? '✈️ Гости: Заб ' + pg.aLateGet + '% · Проп ' + pg.aLateMiss + '%\n' : '✈️ Гости: профиль н/д\n') +
     (synH != null ? '⚡ Синергия: Хоз ' + synH + '% | Гости ' + synA + '%\n' : '') +
@@ -1390,7 +1631,7 @@ function upsertList(data){
     if (st === ST.NOT_ANNOUNCED || st === ST.NOT_STARTED || st === ST.POSTPONED || st === ST.CANCELED) continue;
     current.add(m.id);
     let e = MATCHES.get(m.id);
-    if (!e){ e = { m, cur: null, lastDetail: 0, odds: null, oddsTs: 0, oddsMeta: null, glicko: null, pari: null, signaled: false }; MATCHES.set(m.id, e); }
+    if (!e){ e = { m, cur: null, lastDetail: 0, odds: null, oddsTs: 0, oddsMeta: null, glicko: null, pari: null, momentum: null, signaled: false }; MATCHES.set(m.id, e); }
     else {
       /* Список — сокращенная форма: сливим, не затирая поля, которых в списке нет
          (например, HT-счет, синхронизированный из полной карточки /Games/{id}) */
@@ -1525,6 +1766,22 @@ async function cycle(){
       return e;
     }))).map(r => r.status === 'fulfilled' ? r.value : null).filter(Boolean);
     for (const e of oddsGot) await reEval(e, true);
+
+    /* ФАЗА 4b — Momentum (Flashscore API): давление сторон для кандидатов 2-го тайма.
+       TTL 2 мин, бюджет 6 запросов, только матчи с flashId (в /Games/list он есть).
+       Негативный кэш: если данных нет — не дёргаем API повторно до истечения TTL. */
+    const momCands = entries.filter(e => {
+      const min = num(e.m.elapsed) || 0;
+      return isSecondHalf(e.m) && min >= (CFG.minMin - 8) && min <= 88 && e.m.flashId &&
+        (!e.momentum || Date.now() - e.momentum.ts > MOM_TTL);
+    }).slice(0, 6);
+    const momGot = (await Promise.allSettled(momCands.map(async e => {
+      const mo = await fetchMomentum(e.m.flashId);
+      if (mo && mo.homeShare != null){ e.momentum = mo; return e; }
+      e.momentum = { ts: Date.now(), homeShare: null }; /* негативный кэш на 2 мин */
+      return null;
+    }))).map(r => r.status === 'fulfilled' ? r.value : null).filter(Boolean);
+    for (const e of momGot) await reEval(e, true);
 
     /* Pari-ускоритель статистики (обновление 10 сек) для кандидатов 45–80' */
     if (CFG.usePari && PARI.ok){
@@ -1824,7 +2081,8 @@ function renderCard(c){
   $('calcOdds').value = c.odds ? c.odds.toFixed(2) : (P ? (100 / P).toFixed(2) : '2.00');
   recalcEV();
   $('mProfile').innerHTML = profileTableHtml(c.profH, c.profA, CFG.depth);
-  $('mMomentum').innerHTML = momentumSvg(c.profH, c.profA);
+  $('mMomentum').innerHTML = liveMomentumHtml(c.momentum) + momentumSvg(c.profH, c.profA);
+  loadCardExtras(c); /* травмы/таблица/составы/форма — подгрузка по требованию, не блокирует карточку */
   $('mStats').innerHTML = statsTableHtml(c.statsRows || []);
   $('mTimeline').innerHTML = c.timeline || '<span class="dim">Событий нет</span>';
   $('modalOv').classList.add('show');
@@ -1838,6 +2096,11 @@ function showSignalCard(sigId){
     ('Итог: <b>' + (s.final || '—') + '</b> · ' + (s.status === 'won' ? '<span class="won">✔ гол после сигнала — прошло</span>' : '<span class="lost">✖ гола не было — не прошло</span>') + ' · P/L: <b>' + (profitOf(s) >= 0 ? '+' : '') + Math.round(profitOf(s)) + ' ₽</b>');
   renderCard({
     tag: "🔔 СИГНАЛ " + s.minute + "'",
+    sigId: s.id,
+    mId: s.matchId, flashId: s.flashId || null,
+    teamH: s.teamH != null ? s.teamH : null, teamA: s.teamA != null ? s.teamA : null,
+    leagueId: s.leagueId != null ? s.leagueId : null, seasonYear: s.seasonYear != null ? s.seasonYear : null,
+    momentum: s.momentum || null, injuries: Array.isArray(s.injuries) ? s.injuries : null,
     teams: s.teams, league: s.league, tier: s.tier, minute: s.minute,
     scoreH: s.scoreH, scoreA: s.scoreA, htScore: s.htScore, line: s.line,
     odds: s.odds, noOdds: s.noOdds, modelP: s.modelP, edgePP: s.edgePP,
@@ -1876,6 +2139,11 @@ function showMatchCard(entry){
       (R.reason === 'no-odds' ? ' Live-кэф ТБ ' + line + ' от Bet365 пока не получен.' : ''));
   renderCard({
     tag: (R.ok ? '🔔 СИГНАЛ ' : '🔎 АНАЛИЗ ') + minute + "'",
+    mId: m.id, flashId: m.flashId || null,
+    teamH: m.homeTeam ? num(m.homeTeam.id) : null, teamA: m.awayTeam ? num(m.awayTeam.id) : null,
+    leagueId: (m.season && m.season.league) ? num(m.season.league.id) : null,
+    seasonYear: m.season ? num(m.season.year) : null,
+    momentum: entry.momentum || null, injuries: null,
     teams: m.homeTeam.name + ' — ' + m.awayTeam.name,
     league: league, tier: R.tier || leagueTier(m), minute: minute,
     scoreH: R.hScore, scoreA: R.aScore, htScore: R.htScore, line: line,
