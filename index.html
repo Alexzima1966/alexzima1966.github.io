@@ -1,0 +1,2123 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>⚽ Гол во 2-м тайме — Live монитор (SStats.net + Pari)</title>
+<style>
+  :root{
+    --bg:#070b16; --card:rgba(255,255,255,.045); --card2:rgba(255,255,255,.07);
+    --border:rgba(255,255,255,.09); --text:#e8edf7; --muted:#8b95ad;
+    --green:#22c55e; --cyan:#06b6d4; --amber:#f59e0b; --red:#ef4444; --violet:#a78bfa;
+    --grad:linear-gradient(90deg,#22c55e,#06b6d4);
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
+    background:
+      radial-gradient(900px 500px at 85% -10%, rgba(6,182,212,.18), transparent 60%),
+      radial-gradient(800px 500px at -10% 110%, rgba(34,197,94,.15), transparent 60%),
+      var(--bg);
+    color:var(--text); min-height:100vh; padding-bottom:90px;
+  }
+  header{
+    position:sticky; top:0; z-index:50; backdrop-filter:blur(14px);
+    background:rgba(7,11,22,.75); border-bottom:1px solid var(--border);
+  }
+  .hwrap{max-width:1280px; margin:0 auto; padding:14px 20px; display:flex; gap:16px; align-items:center; flex-wrap:wrap;}
+  .logo{font-size:22px; font-weight:800; letter-spacing:.3px;
+    background:var(--grad); -webkit-background-clip:text; background-clip:text; color:transparent; white-space:nowrap;}
+  .logo small{display:block; font-size:11px; font-weight:600; color:var(--muted); -webkit-text-fill-color:var(--muted);}
+  .hstats{display:flex; gap:10px; flex-wrap:wrap; margin-left:auto; align-items:center;}
+  .chip{display:inline-flex; align-items:center; gap:7px; padding:7px 13px; border-radius:999px;
+    background:var(--card2); border:1px solid var(--border); font-size:12.5px; white-space:nowrap;}
+  .dot{width:9px; height:9px; border-radius:50%; background:var(--green); box-shadow:0 0 10px var(--green); animation:pulse 1.6s infinite;}
+  .dot.off{background:var(--red); box-shadow:0 0 10px var(--red); animation:none;}
+  .dot.idle{background:var(--amber); box-shadow:0 0 10px var(--amber); animation:none;}
+  @keyframes pulse{0%,100%{opacity:1;} 50%{opacity:.35;}}
+  .gauge{min-width:170px;}
+  .gaugebar{height:6px; border-radius:6px; background:rgba(255,255,255,.08); margin-top:5px; overflow:hidden;}
+  .gaugebar>i{display:block; height:100%; background:var(--grad); width:0%; transition:width .4s; border-radius:6px;}
+  nav{max-width:1280px; margin:18px auto 0; padding:0 20px; display:flex; gap:8px; flex-wrap:wrap;}
+  .tab{padding:10px 18px; border-radius:12px; background:var(--card); border:1px solid var(--border);
+    color:var(--muted); cursor:pointer; font-size:14px; font-weight:600; transition:.2s; user-select:none;}
+  .tab:hover{color:var(--text); background:var(--card2);}
+  .tab.active{background:var(--grad); color:#04121c; border-color:transparent;}
+  .tab .badge{background:var(--red); color:#fff; border-radius:999px; padding:1px 8px; font-size:11px; margin-left:6px;}
+  main{max-width:1280px; margin:0 auto; padding:20px;}
+  .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(330px,1fr)); gap:14px;}
+  .card{background:var(--card); border:1px solid var(--border); border-radius:16px; padding:16px; position:relative; overflow:hidden;}
+  .card.ht{border-color:rgba(34,197,94,.45); box-shadow:0 0 24px rgba(34,197,94,.07);}
+  .card.sig{border-color:rgba(6,182,212,.5);}
+  .lg{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; margin-bottom:8px; display:flex; gap:8px; align-items:center;}
+  .teams{font-size:15.5px; font-weight:700; line-height:1.35;}
+  .score{font-size:22px; font-weight:800; margin:6px 0 2px; font-variant-numeric:tabular-nums;}
+  .score .hts{color:var(--amber); font-size:13px; font-weight:700; margin-left:8px;}
+  .stbadge{display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:999px; font-size:11.5px; font-weight:700; margin-top:6px;}
+  .stbadge.live{background:rgba(239,68,68,.16); color:#fca5a5; border:1px solid rgba(239,68,68,.35);}
+  .stbadge.htb{background:rgba(245,158,11,.16); color:#fcd34d; border:1px solid rgba(245,158,11,.35);}
+  .stbadge.fin{background:rgba(139,149,173,.15); color:var(--muted); border:1px solid var(--border);}
+  .mini{display:flex; gap:6px; margin-top:10px; flex-wrap:wrap;}
+  .mini span{font-size:11px; padding:4px 9px; border-radius:8px; background:rgba(255,255,255,.05); border:1px solid var(--border); color:var(--muted);}
+  .mini b{color:var(--text);}
+  .srcb{font-size:10px; padding:1px 7px; border-radius:999px; font-weight:700; margin-left:6px; white-space:nowrap;}
+  .srcb.ss{background:rgba(34,197,94,.14); color:#86efac; border:1px solid rgba(34,197,94,.3);}
+  .srcb.pr{background:rgba(167,139,250,.14); color:#c4b5fd; border:1px solid rgba(167,139,250,.3);}
+  .btn{padding:8px 14px; border-radius:10px; border:1px solid var(--border); background:var(--card2);
+    color:var(--text); font-size:13px; font-weight:600; cursor:pointer; transition:.15s;}
+  .btn:hover{filter:brightness(1.25);}
+  .btn.primary{background:var(--grad); color:#04121c; border:none;}
+  .btn.danger{background:rgba(239,68,68,.15); border-color:rgba(239,68,68,.4); color:#fca5a5;}
+  .btn.small{padding:5px 10px; font-size:12px;}
+  .row{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:12px;}
+  .panel{background:var(--card); border:1px solid var(--border); border-radius:16px; padding:20px; margin-bottom:16px;}
+  .panel h2{font-size:17px; margin-bottom:14px; display:flex; gap:9px; align-items:center; flex-wrap:wrap;}
+  .f{display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:14px;}
+  .f label{display:block; font-size:12px; color:var(--muted); margin-bottom:5px; font-weight:600;}
+  input,select,textarea{width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border);
+    background:rgba(0,0,0,.35); color:var(--text); font-size:13.5px; font-family:inherit;}
+  input:focus,select:focus,textarea:focus{outline:none; border-color:var(--cyan);}
+  .sw{display:flex; align-items:center; gap:10px; padding:9px 12px; background:rgba(0,0,0,.25); border:1px solid var(--border); border-radius:10px; font-size:13px; cursor:pointer; width:100%;}
+  .sw input{width:auto;}
+  .checks{display:flex; flex-direction:column; gap:8px;}
+  .chk{display:flex; align-items:center; gap:10px; padding:10px 13px; border-radius:11px;
+    border:1px solid var(--border); background:rgba(0,0,0,.22); font-size:13.5px;}
+  .chk.ok{border-color:rgba(34,197,94,.4); background:rgba(34,197,94,.07);}
+  .chk.no{border-color:rgba(239,68,68,.4); background:rgba(239,68,68,.07);}
+  .chk.warn{border-color:rgba(245,158,11,.4); background:rgba(245,158,11,.07);}
+  .chk .ico{font-size:17px;}
+  .chk .need{color:var(--muted); font-size:12px; margin-left:auto; text-align:right; white-space:nowrap;}
+  table{width:100%; border-collapse:collapse; font-size:13px;}
+  th,td{padding:7px 10px; text-align:center; border-bottom:1px solid var(--border);}
+  th{color:var(--muted); font-weight:600; font-size:11.5px; text-transform:uppercase;}
+  td:first-child,th:first-child{text-align:left;}
+  .signalcard{border:1px solid rgba(6,182,212,.4); background:linear-gradient(135deg, rgba(6,182,212,.09), rgba(34,197,94,.07));}
+  .signalcard .time{font-size:11.5px; color:var(--muted);}
+  .empty{padding:50px 20px; text-align:center; color:var(--muted); font-size:14px; grid-column:1/-1;}
+  .empty .big{font-size:42px; margin-bottom:12px;}
+  #modalwrap{position:fixed; inset:0; background:rgba(2,5,12,.7); backdrop-filter:blur(6px); z-index:100; display:none; align-items:flex-start; justify-content:center; padding:30px 14px; overflow:auto;}
+  #modalwrap.open{display:flex;}
+  .modal{width:min(900px,100%); background:#0c1322; border:1px solid var(--border); border-radius:20px; overflow:hidden; animation:pop .25s ease;}
+  @keyframes pop{from{transform:scale(.94); opacity:0;} to{transform:scale(1); opacity:1;}}
+  .mhead{padding:22px 24px; background:linear-gradient(120deg, rgba(34,197,94,.16), rgba(6,182,212,.14)); border-bottom:1px solid var(--border); position:relative;}
+  .mhead .x{position:absolute; top:14px; right:16px; font-size:20px; background:none; border:none; color:var(--muted); cursor:pointer; font-weight:700;}
+  .mhead h3{font-size:21px; margin-bottom:4px;}
+  .mhead .sub{color:var(--muted); font-size:12.5px;}
+  .mbody{padding:20px 24px 26px; display:flex; flex-direction:column; gap:18px;}
+  .msection h4{font-size:14px; margin-bottom:10px; color:var(--cyan); display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
+  details.raw{margin-top:8px;}
+  details.raw summary{cursor:pointer; color:var(--muted); font-size:12px; padding:6px 0;}
+  details.raw pre{background:rgba(0,0,0,.5); border:1px solid var(--border); border-radius:10px; padding:12px; font-size:11px; overflow:auto; max-height:300px; white-space:pre-wrap;}
+  .twocol{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+  @media(max-width:640px){.twocol{grid-template-columns:1fr;}}
+  .teambox{background:rgba(0,0,0,.25); border:1px solid var(--border); border-radius:13px; padding:13px;}
+  .teambox h5{font-size:13.5px; margin-bottom:8px;}
+  .kv{display:flex; justify-content:space-between; font-size:12.5px; padding:3px 0; color:var(--muted);}
+  .kv b{color:var(--text);}
+  .probbar{height:8px; border-radius:6px; background:rgba(255,255,255,.08); overflow:hidden; margin-top:5px;}
+  .probbar i{display:block; height:100%; background:var(--grad);}
+  #log{position:fixed; bottom:0; left:0; right:0; z-index:60; background:rgba(7,11,22,.94); border-top:1px solid var(--border); backdrop-filter:blur(10px);}
+  #log summary{padding:9px 20px; font-size:12px; color:var(--muted); cursor:pointer; user-select:none;}
+  #logbody{max-height:180px; overflow:auto; padding:0 20px 12px; font-family:Consolas,monospace; font-size:11.5px; color:var(--muted); line-height:1.7;}
+  #logbody .err{color:#fca5a5;} #logbody .okc{color:#86efac;} #logbody .warnc{color:#fcd34d;} #logbody .prc{color:#c4b5fd;}
+  .banner{margin:0 0 16px; padding:12px 16px; border-radius:12px; font-size:13px; display:none;}
+  .banner.err{display:block; background:rgba(239,68,68,.12); border:1px solid rgba(239,68,68,.4); color:#fca5a5;}
+  .banner.warn2{display:block; background:rgba(245,158,11,.1); border:1px solid rgba(245,158,11,.35); color:#fcd34d;}
+  .hidden{display:none!important;}
+  .spin{display:inline-block; animation:rot 1s linear infinite;}
+  @keyframes rot{to{transform:rotate(360deg);}}
+  .flash{animation:flash 1.2s ease 2;}
+  @keyframes flash{0%,100%{box-shadow:none;}50%{box-shadow:0 0 34px rgba(6,182,212,.45);}}
+  a{color:var(--cyan);}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hwrap">
+    <div class="logo">⚽ ГОЛ ВО 2-М ТАЙМЕ
+      <small>Live монитор · SStats.net + Pari.ru · стратегия «Тотал + к результату» · ntfy</small></div>
+    <div class="hstats">
+      <span class="chip"><span class="dot idle" id="conndot"></span><span id="conntext">Ожидание…</span></span>
+      <span class="chip">🔴 Live: <b id="livecnt">—</b></span>
+      <span class="chip">⏸ Перерыв: <b id="htcnt">0</b></span>
+      <span class="chip" id="parichip">🟣 Pari: <b id="paricnt">—</b></span>
+      <span class="chip">📢 Сигналов: <b id="sigcnt">0</b></span>
+      <span class="chip gauge">🌐 Запросы: <b id="reqcnt">0/28</b> в мин
+        <span class="gaugebar"><i id="reqbar"></i></span></span>
+      <span class="chip" id="clock">🕒 —</span>
+    </div>
+  </div>
+</header>
+
+<nav>
+  <div class="tab active" data-tab="live">🔴 Live матчи</div>
+  <div class="tab" data-tab="signals">📢 Сигналы <span class="badge hidden" id="sigbadge">0</span></div>
+  <div class="tab" data-tab="rejected">🚫 Отклонённые</div>
+  <div class="tab" data-tab="results">💰 Результаты <span class="badge hidden" id="betbadge">0</span></div>
+  <div class="tab" data-tab="strategy">📋 Стратегия и источники</div>
+  <div class="tab" data-tab="settings">⚙️ Настройки</div>
+</nav>
+
+<main>
+  <div id="banner" class="banner"></div>
+
+  <!-- LIVE -->
+  <section id="tab-live">
+    <div class="panel">
+      <h2>🔎 Мониторинг live-матчей
+          <button class="btn small" id="btnRefresh">🔄 Обновить</button>
+          <button class="btn small danger" id="btnTest">🔔 Тест сигнала</button></h2>
+      <div class="f">
+        <div><label>🆔 Проверить конкретный матч по ID (SStats или Flashscore)</label>
+          <div style="display:flex;gap:8px;"><input id="manualId" placeholder="например 1629933"/>
+          <button class="btn primary" id="btnManual">Проверить</button></div></div>
+      </div>
+      <p style="color:var(--muted);font-size:12px;margin-top:10px">📡 Данные собираются из двух источников: <b style="color:#86efac">SStats.net</b> (счёт, удары в створ, угловые, форма, коэффициенты) и <b style="color:#c4b5fd">Pari.ru</b> (опасные атаки 1-го тайма, live-кэф «2-й тайм, ТБ 0.5», сверка счёта). Источник каждого показателя подписан в результатах.</p>
+    </div>
+    <div class="grid" id="livegrid"></div>
+  </section>
+
+  <!-- SIGNALS -->
+  <section id="tab-signals" class="hidden">
+    <div class="grid" id="siggrid"></div>
+  </section>
+
+  <!-- REJECTED -->
+  <section id="tab-rejected" class="hidden">
+    <div id="rejstats"></div>
+    <div class="grid" id="rejgrid"></div>
+  </section>
+
+  <!-- RESULTS -->
+  <section id="tab-results" class="hidden">
+    <div class="panel">
+      <h2>💰 Результаты сигналов — авто-расчёт ставок
+        <button class="btn small" id="btnBetReport">📋 Отчёт в буфер</button>
+        <button class="btn small danger" id="btnBetClear">🗑 Очистить журнал</button></h2>
+      <p style="color:var(--muted);font-size:12.5px">Каждый сигнал записывается в журнал. После окончания матча программа автоматически сверяет итоговый счёт со счётом на перерыве: гол во 2-м тайме — ставка «2-й тайм, ТБ 0.5» сыграла. Ставка = 1 юнит по кэфу входа (если указан) либо по кэфу сигнала. ROI = прибыль / число рассчитанных ставок × 100%.</p>
+      <div id="resultsbody" style="margin-top:14px"></div>
+    </div>
+  </section>
+
+  <!-- STRATEGY -->
+  <section id="tab-strategy" class="hidden">
+    <div class="panel">
+      <h2>📋 Стратегия «Гол во 2-м тайме»</h2>
+      <div class="checks" id="strategyInfo"></div>
+    </div>
+    <div class="panel">
+      <h2>🟢 Источник: SStats.net (Flashscore + букмекеры)</h2>
+      <table>
+        <tr><th>Эндпоинт</th><th>Какие данные берём</th></tr>
+        <tr><td>/Games/list?Live=true</td><td>Мониторинг live-матчей, статус 4 = перерыв → запуск анализа</td></tr>
+        <tr><td>/Games/{id}</td><td>Счёт 1-го тайма (homeHTResult/awayHTResult), <b>удары в створ 1Т</b>, <b>угловые 1Т</b>, удары всего, xG, владение</td></tr>
+        <tr><td>/Odds/{gameId}</td><td><b>Резерв доматчевого кэфа ТБ 2.5</b> — медиана по всем букмекерам (устойчива к выбросам, в отличие от среднего)</td></tr>
+        <tr><td>/Odds/live/{gameId}</td><td>Резерв live-кэфа «2-й тайм, ТБ 0.5» — эквивалент «Match Goals Over (N+0.5)» (тотал матча, N = голов на перерыве) и рынки 2-го тайма, Bet365</td></tr>
+        <tr><td>/Games/last-games-stats?limit=6</td><td>Форма (В/Н/П) и голы (ГЗ/ГП) обеих команд за последние 6 матчей</td></tr>
+        <tr><td>/Games/glicko/{id}</td><td>Вероятности по Glicko-2 — в модальное окно сигнала</td></tr>
+        <tr><td>/Games/text-summary</td><td>Текстовая сводка — в модальное окно сигнала</td></tr>
+      </table>
+    </div>
+    <div class="panel">
+      <h2>🟣 Источник: Pari.ru (через API SStats, обновление 3–10 сек)</h2>
+      <table>
+        <tr><th>Эндпоинт</th><th>Какие данные берём</th></tr>
+        <tr><td>/Pari/matches?live=true</td><td>Сопоставление матча SStats ↔ eventId Pari по названиям команд (кэш на цикл)</td></tr>
+        <tr><td>/Pari/events/{eventId}</td><td><b>Опасные атаки 1-го тайма</b> (события DangerousAttack, period=1) — основной источник; резерв: удары в створ, угловые</td></tr>
+        <tr><td>/Pari/match/{eventId}</td><td><b>Доматчевый кэф ТБ 2.5</b> — prematch «Full Time. Goals Total: Over 2.50» (реальный кэф в конторе, где делается ставка); <b>live-кэф «2-й тайм, ТБ 0.5»</b> — «Second Half. Goals Total: Over 0.50», резерв — «Full Time. Goals Total: Over (N+0.5)» (математический эквивалент: гол во 2-м тайме ⟺ тотал матча ≥ N+1); сверка счёта 1Т</td></tr>
+      </table>
+      <p style="color:var(--muted);font-size:12.5px;margin-top:12px">⚠️ Почему два источника: у SStats (Flashscore) поле dangerousAttacks часто равно <code>null</code>, зато удары в створ и угловые — точные (проверено: 5 в створ против 1 у Pari, 7 угловых против 4). У Pari, наоборот, полный лог опасных атак (проверено: 66 за 1Т). Программа берёт каждый показатель из надёжного источника и показывает происхождение каждой цифры.</p>
+    </div>
+    <div class="panel">
+      <h2>📢 Push-уведомления: ntfy.sh</h2>
+      <p style="color:var(--muted);font-size:13px">Сигнал отправляется POST-запросом на https://ntfy.sh в топик из настроек. Подпишитесь на топик в приложении ntfy (Android/iOS) или в веб-интерфейсе ntfy.sh.</p>
+      <p style="color:var(--muted);font-size:12.5px;margin-top:8px">🌐 Все запросы к API проходят через планировщик с лимитом <b id="strRpm">28</b> запросов/мин (макс. 30 — ограничение SStats.net без API-ключа). Приоритет: live-список → перерывы → статистика/кэфы → форма → обогащение сигнала. При провале счёта/лиги/доматчевого кэфа остальные проверки не тратят запросы (быстрый отказ).</p>
+    </div>
+  </section>
+
+  <!-- SETTINGS -->
+  <section id="tab-settings" class="hidden">
+    <div class="panel">
+      <h2>🔌 Подключение</h2>
+      <div class="f">
+        <div><label>🌐 Базовый URL API</label><input id="s_baseUrl" placeholder="https://api.sstats.net"/></div>
+        <div><label>🔑 API-ключ SStats.net (необязательно, ?apikey=…)</label><input id="s_apikey" placeholder="введите ключ"/></div>
+        <div><label>🌐 CORS-прокси — если браузер блокирует запросы (Load failed)</label>
+          <select id="s_proxy">
+            <option value="">Без прокси (напрямую)</option>
+            <option value="https://corsproxy.io/?url={url}">corsproxy.io</option>
+            <option value="https://api.allorigins.win/raw?url={url}">allorigins.win</option>
+            <option value="custom">Свой шаблон…</option>
+          </select></div>
+        <div><label>✏️ Шаблон прокси ({url} = адрес запроса к API)</label><input id="s_proxyUrl" placeholder="https://мой-прокси/?url={url}"/></div>
+        <div><label>⏱ Лимит запросов в минуту (макс. 30)</label><input id="s_rpm" type="number" min="5" max="30"/></div>
+        <div><label>🔁 Интервал опроса live-списка, сек</label><input id="s_poll" type="number" min="15" max="300"/></div>
+        <div><label>🌏 Часовой пояс API (от -12 до 12)</label><input id="s_tz" type="number" min="-12" max="12"/></div>
+        <div><label>📢 Топик ntfy (например: my-secret-goals-2026)</label><input id="s_ntfy" placeholder="ваш-секретный-топик"/></div>
+      </div>
+      <p style="color:var(--muted);font-size:12px;margin-top:10px">📱 Подпишитесь на топик в приложении ntfy (Android/iOS) или на <a href="https://ntfy.sh" target="_blank" rel="noopener">ntfy.sh</a>, чтобы получать push-уведомления о сигналах.</p>
+    </div>
+
+    <div class="panel">
+      <h2>🎯 Условия стратегии</h2>
+      <div class="f">
+        <div><label>⏸ Допустимые счета на перерыве (через запятую)</label><input id="s_scores"/></div>
+        <div><label>📊 Коэф. ТБ 2.5 до матча — минимум</label><input id="s_preMin" type="number" step="0.01"/></div>
+        <div><label>📊 Коэф. ТБ 2.5 до матча — максимум</label><input id="s_preMax" type="number" step="0.01"/></div>
+        <div><label>⚡ Опасные атаки 1Т (сумма) — от</label><input id="s_minDA" type="number"/></div>
+        <div><label>🎯 Удары в створ 1Т (сумма) — от</label><input id="s_minSG" type="number"/></div>
+        <div><label>🚩 Угловые 1Т (сумма) — от</label><input id="s_minCK" type="number"/></div>
+        <div><label>📈 Коэф. при сигнале (2-й тайм, ТБ 0.5) — минимум</label><input id="s_sigMin" type="number" step="0.01"/></div>
+        <div><label>📈 Коэф. при сигнале (2-й тайм, ТБ 0.5) — максимум</label><input id="s_sigMax" type="number" step="0.01"/></div>
+        <div><label>🏆 Форма за 6 матчей: побед — от</label><input id="s_formW" type="number"/></div>
+        <div><label>📉 Форма за 6 матчей: поражений — от</label><input id="s_formL" type="number"/></div>
+        <div><label>⚽ Голы забитые (ГЗ) за 6 матчей — от</label><input id="s_gf" type="number"/></div>
+        <div><label>🥅 Голы пропущенные (ГП) за 6 матчей — от</label><input id="s_ga" type="number"/></div>
+        <div class="chk" style="margin-top:6px"><span class="ico">📌</span><span>Трактовка формы и голов — <b>строго по стратегии</b>:<br>
+          <small>🏆 у одной (любой) команды: победы ≥ <b id="h_formW">2</b> И поражения ≥ <b id="h_formL">2</b> вместе;<br>
+          ⚽ у одной (любой) команды: ГЗ ≥ <b id="h_gf">11</b> И ГП ≥ <b id="h_ga">7</b> вместе</small></span></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>🛠 Поведение и фильтры</h2>
+      <div class="f">
+        <div><label>🚫 Ключевые слова исключаемых лиг (regex)</label><input id="s_exclude"/></div>
+        <div><label>🕐 Поздний сигнал: допустимая минута 2-го тайма (0 — только перерыв)</label><input id="s_maxLate" type="number" min="0" max="10"/></div>
+      </div>
+      <div class="f">
+        <div><label>🏆 Белый список лиг tier 1–2 (идентификаторы flashScoreId, по одному в строке; # — комментарий)</label><textarea id="s_leagueWhite" rows="10" style="font-family:monospace; font-size:12.5px; white-space:pre"></textarea></div>
+      </div>
+      <div class="checks" style="margin-top:12px">
+        <label class="sw"><input type="checkbox" id="s_usePari"/> 🟣 Использовать Pari.ru: опасные атаки 1Т, live-кэф «2-й тайм, ТБ 0.5», сверка счёта 1Т (настоятельно рекомендуется)</label>
+        <label class="sw"><input type="checkbox" id="s_failFast"/> ⏭ Быстрый отказ: не тратить запросы, если счёт/лига/доматчевый кэф уже не подходят</label>
+        <label class="sw"><input type="checkbox" id="s_allow2h"/> ✅ Анализировать и в начале 2-го тайма, если перерыв был пропущен</label>
+        <label class="sw"><input type="checkbox" id="s_strict"/> 🔒 Строгий режим: критерий без данных = отказ (иначе помечается ⚠️ и не блокирует)</label>
+        <label class="sw"><input type="checkbox" id="s_autoOpen"/> 🪟 Автоматически открывать модальное окно при сигнале</label>
+        <label class="sw"><input type="checkbox" id="s_sound"/> 🔊 Звуковой сигнал</label>
+        <label class="sw"><input type="checkbox" id="s_notif"/> 💻 Браузерные уведомления (дополнительно к ntfy)</label>
+        <label class="sw"><input type="checkbox" id="s_hideExcl"/> 🙈 Скрывать исключённые лиги во вкладке Live</label>
+        <label class="sw"><input type="checkbox" id="s_tierOnly"/> 🏆 Только лиги tier 1–2 из белого списка: высшие дивизионы ведущих стран + 2-е дивизионы сильнейших чемпионатов (слабые лиги отклоняются до анализа — экономия запросов и только полные данные)</label>
+        <label class="sw"><input type="checkbox" id="s_track"/> 💰 Отслеживать результаты сигналов: после матча автоматически сверять итоговый счёт со счётом перерыва, считать винрейт и ROI по корзинам кэфа (журнал хранится локально в браузере)</label>
+        <label class="sw"><input type="checkbox" id="s_running"/> ▶️ Мониторинг запущен</label>
+      </div>
+      <div class="row">
+        <button class="btn primary" id="btnSave">💾 Сохранить настройки</button>
+        <button class="btn" id="btnTestNtfy">📨 Тест ntfy</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- MODAL -->
+<div id="modalwrap">
+  <div class="modal" id="modal"></div>
+</div>
+
+<details id="log">
+  <summary>🖥 Журнал запросов и событий</summary>
+  <div id="logbody"></div>
+</details>
+
+<script>
+'use strict';
+/* ============================================================
+   ⚽ Гол во 2-м тайме — Live монитор по стратегии подписчика
+   Данные: SStats.net (Flashscore+букмекеры) + Pari.ru (через API SStats)
+   Push: ntfy.sh · Лимит: планировщик ≤ N запросов/мин (макс. 30)
+   Архитектура данных (проверено на реальных матчах):
+   • Счёт 1Т, удары в створ 1Т, угловые 1Т, форма 6 матчей → SStats
+   • Опасные атаки 1Т (dangerousAttacks у SStats = null) → Pari /Pari/events
+   • Live-кэф «2-й тайм, ТБ 0.5» при сигнале → Pari /Pari/match (Second Half. Goals Total: Over 0.50)
+     · ставка не зависит от счёта 1Т: требуется один гол во 2-м тайме
+     · эквивалент в той же конторе → «Full Time. Goals Total: Over (N+0.5)», N = голов на перерыве
+       (гол во 2-м тайме ⟺ тотал матча ≥ N+1; проверено: при 1:1 кэфы 1.09 и 1.10, при 0:0 — 1.23 и 1.25)
+     · резерв → SStats /Odds/live (Bet365): «Match Goals Over (N+0.5)», затем рынки 2-го тайма
+   • Доматчевый ТБ 2.5 → Pari prematchOdds (реальный кэф в конторе ставки)
+     · резерв → SStats /Odds/{id} МЕДИАНА по букмекерам (среднее искажается выбросами)
+   • Счёт 1Т сверяется между SStats и Pari
+   ============================================================ */
+
+/* ---------- Настройки ---------- */
+const DEFAULTS = {
+  baseUrl:'https://api.sstats.net', apikey:'', rpm:28, poll:30, tz:3,
+  proxyTemplate:'', ntfy:'',
+  scores:'0:0,0:1,0:2,1:0,1:1,1:2,2:0,2:1,2:3,3:2',
+  preMin:1.3, preMax:1.7, minDA:50, minSG:4, minCK:3,
+  sigMin:1.2, sigMax:1.7, formW:2, formL:2, gf:11, ga:7,
+  exclude:'кубок|куб\\.?|cup|copa|coupe|troph|трофей|троф|friendly|товарищеск|дружеск|women|женск|femin|frau|юношеск|юнош|юниор|youth|молодёж|u[-_ ]?1[4-9]|u[-_ ]?2[0-3]',
+  usePari:true, failFast:true, allow2h:false, strict:true, autoOpen:true, sound:true, notif:true,
+  hideExcl:true, running:true, track:true, maxLate:3,
+  tierOnly:true,
+  leagueWhite:[
+    /* Tier 1 — высшие дивизионы ведущих стран (слаги проверены на реальных матчах, где отмечено) */
+    'england/premier-league',      /* проверено */
+    'spain/laliga',
+    'italy/serie-a',
+    'germany/bundesliga',
+    'france/ligue-1',              /* проверено */
+    'portugal/liga-portugal',
+    'netherlands/eredivisie',      /* проверено */
+    'belgium/jupiler-pro-league',
+    'turkey/super-lig',
+    'greece/super-league',         /* проверено */
+    'russia/premier-league',       /* проверено */
+    'ukraine/premier-league',      /* проверено */
+    'scotland/premiership',
+    'austria/bundesliga',
+    'switzerland/super-league',
+    'denmark/superliga',
+    'norway/eliteserien',
+    'sweden/allsvenskan',
+    'poland/ekstraklasa',          /* проверено */
+    'czech/chance-liga',
+    'croatia/hnl',
+    'serbia/super-liga',
+    'romania/superliga',
+    'hungary/otp-bank-liga',       /* проверено */
+    'kazakhstan/premier-league',   /* проверено */
+    'israel/premier-league',
+    'cyprus/first-division',
+    'iran/persian-gulf-pro-league',/* проверено */
+    'saudi-arabia/saudi-pro-league',
+    'egypt/premier-league',
+    'morocco/botola-pro',
+    'japan/j1-league',
+    'south-korea/k-league-1',
+    'china/super-league',
+    'australia/a-league',         /* проверено */
+    'brazil/serie-a',             /* проверено */
+    'argentina/liga-profesional', /* проверено */
+    'usa/mls',                     /* проверено */
+    'mexico/liga-mx',             /* проверено */
+    'colombia/primera-a',         /* проверено */
+    'chile/primera-division',
+    'uruguay/primera-division',   /* проверено */
+    /* Tier 2 — вторые дивизионы сильнейших чемпионатов */
+    'england/championship',
+    'spain/laliga-2',
+    'italy/serie-b',              /* проверено */
+    'germany/2-bundesliga',
+    'france/ligue-2',             /* проверено */
+    'portugal/liga-portugal-2',
+    'netherlands/eerste-divisie',
+    'belgium/challenger-pro-league',
+    'scotland/championship',
+    'russia/fnl',
+    'turkey/1-lig',
+    'greece/super-league-2',      /* проверено */
+    'brazil/serie-b',             /* проверено */
+    'japan/j2-league'
+  ].join('\n')
+};
+let S = loadSettings();
+function loadSettings(){
+  let s;
+  try{ s = Object.assign({}, DEFAULTS, JSON.parse(localStorage.getItem('gol2t_settings')||'{}')); }
+  catch(e){ s = Object.assign({}, DEFAULTS); }
+  delete s.teamMode; delete s.goalMode;
+  /* миграция на строгую трактовку стратегии (v2): только перерыв + сигнал при полных данных */
+  if(!s.v2){ s.strict = true; s.allow2h = false; s.v2 = 1; saveSettingsRaw(s); }
+  if(!s.v3){ s.track = true; s.maxLate = 3; s.v3 = 1; saveSettingsRaw(s); }
+  return s;
+}
+function saveSettingsRaw(s){ try{ localStorage.setItem('gol2t_settings', JSON.stringify(s)); }catch(e){} }
+function saveSettings(){ try{ localStorage.setItem('gol2t_settings', JSON.stringify(S)); }catch(e){} }
+function scoreSet(){ return S.scores.split(',').map(x=>x.trim().replace(/\s/g,'')).filter(Boolean); }
+
+/* ---------- Состояние ---------- */
+const state = {
+  live: new Map(),
+  analyzed: new Set(),
+  inflight: new Set(),
+  signals: [],
+  rejected: [],
+  errStreak: 0,
+  pariLive: [], pariLiveTs: 0, pariLivePromise: null,
+  pariMap: new Map(),  /* sstatsId → {ev, ts} (ev=null = не нашли) */
+  /* 💰 Журнал ставок (localStorage 'gol2t_bets') и счётчик причин отказов ('gol2t_rejectstats') */
+  bets: (function(){ try{ const a = JSON.parse(localStorage.getItem('gol2t_bets')||'[]'); return Array.isArray(a)?a:[]; }catch(e){ return []; } })(),
+  rejectStats: (function(){ try{ const o = JSON.parse(localStorage.getItem('gol2t_rejectstats')||'{}'); return (o && typeof o==='object' && !Array.isArray(o))?o:{}; }catch(e){ return {}; } })()
+};
+
+/* ---------- Планировщик запросов (скользящее окно 60 сек) ---------- */
+const stamps = [];
+function reqUsed(){ const cutoff = Date.now()-60000; while(stamps.length && stamps[0]<cutoff) stamps.shift(); return stamps.length; }
+function reqLimit(){ return Math.max(1, Math.min(30, S.rpm|0)); }
+function reqAvailable(){ return reqUsed() < reqLimit(); }
+function reqHit(){ stamps.push(Date.now()); updateReqUI(); }
+
+const QUEUE = [];
+function enqueue(fn, prio){
+  return new Promise((resolve, reject)=>{
+    QUEUE.push({fn, prio, resolve, reject});
+    QUEUE.sort((a,b)=>a.prio-b.prio);
+  });
+}
+setInterval(()=>{
+  while(QUEUE.length && reqAvailable()){
+    const t = QUEUE.shift();
+    reqHit();
+    Promise.resolve().then(t.fn).then(t.resolve, t.reject);
+  }
+}, 400);
+function updateReqUI(){
+  const used = reqUsed(), lim = reqLimit();
+  const el = document.getElementById('reqcnt'); if(el) el.textContent = used+'/'+lim;
+  const bar = document.getElementById('reqbar'); if(bar) bar.style.width = Math.min(100, used/lim*100)+'%';
+  const sr = document.getElementById('strRpm'); if(sr) sr.textContent = lim;
+}
+setInterval(updateReqUI, 3000);
+
+/* ---------- HTTP к api.sstats.net (с опциональным CORS-прокси) ---------- */
+function buildTarget(url){
+  const tpl = S.proxyTemplate || '';
+  if(!tpl) return url.toString();
+  if(tpl.indexOf('{url}')>=0) return tpl.replace('{url}', encodeURIComponent(url.toString()));
+  return tpl.replace(/\/+$/,'') + '/' + url.toString();
+}
+function netErrHint(msg){
+  const m = String(msg||'');
+  if(/load failed|failed to fetch|networkerror|fetch/i.test(m))
+    return ' · сетевой запрос блокируется (CORS / предпросмотр / нет интернета)';
+  return '';
+}
+async function API(path, params, prio){
+  params = params || {}; prio = (prio==null?2:prio);
+  const url = new URL((S.baseUrl||DEFAULTS.baseUrl).replace(/\/+$/,'') + path);
+  for(const k in params){ const v = params[k]; if(v!==undefined && v!==null && v!=='') url.searchParams.set(k, v); }
+  if(S.apikey) url.searchParams.set('apikey', S.apikey);
+  const res = await enqueue(async ()=>{
+    try{
+      const r = await fetch(buildTarget(url), {method:'GET', headers:{'Accept':'application/json'}});
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      const txt = await r.text();
+      let j; try{ j = JSON.parse(txt); }catch(e){ j = txt; }
+      state.errStreak = 0; showBanner();
+      return {ok:true, data:j};
+    }catch(e){
+      state.errStreak++; showBanner();
+      return {ok:false, error:e.message};
+    }
+  }, prio);
+  const qs = Object.keys(params||{}).map(k=>k+'='+String(params[k]).slice(0,40)).join('&');
+  logLine((res.ok?'✅':'❌')+' GET '+path+(qs?'?'+qs:'')+(S.proxyTemplate?' · через прокси':'')+' '+(res.ok?'':'· '+res.error+netErrHint(res.error)), res.ok?'okc':'err');
+  return res.ok ? res.data : null;
+}
+
+/* ---------- ntfy ---------- */
+async function ntfySend(title, message, tags){
+  const topic = (S.ntfy||'').trim();
+  if(!topic){ logLine('⚠️ ntfy: топик не задан в настройках', 'warnc'); return {ok:false}; }
+  try{
+    const r = await fetch('https://ntfy.sh', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({topic:topic, title:title, message:message, priority:4, tags:tags||['soccer']})
+    });
+    logLine((r.ok?'📨':'⚠️')+' ntfy → '+topic+' '+(r.ok?'ok':'HTTP '+r.status), r.ok?'okc':'warnc');
+    return {ok:r.ok};
+  }catch(e){ logLine('⚠️ ntfy: '+e.message, 'warnc'); return {ok:false}; }
+}
+
+/* ---------- Журнал ---------- */
+const logLines = [];
+function logLine(msg, cls){
+  const t = new Date().toLocaleTimeString('ru-RU');
+  logLines.unshift('['+t+'] '+msg);
+  if(logLines.length>250) logLines.pop();
+  const b = document.getElementById('logbody');
+  if(b) b.innerHTML = logLines.map(l=>'<span class="'+(cls||'')+'">'+escHtml(l)+'</span>').join('<br>');
+}
+function escHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+
+/* ---------- Утилиты разбора ответов ---------- */
+function deepCollect(root, pred){
+  const acc = [];
+  (function walk(o, d){
+    if(d>12 || !o || typeof o!=='object') return;
+    if(pred(o)) acc.push(o);
+    for(const k in o) walk(o[k], d+1);
+  })(root, 0);
+  return acc;
+}
+function unwrap(j){
+  if(j==null || typeof j!=='object' || Array.isArray(j)) return j;
+  const keys = ['data','Data','response','Response','result','Result'];
+  for(let i=0;i<keys.length;i++){ if(j[keys[i]]!==undefined) return j[keys[i]]; }
+  return j;
+}
+function looksLikeGame(x){
+  return x && typeof x==='object' && !Array.isArray(x) &&
+    (('homeTeam' in x)||('HomeTeam' in x)||('homeTeamName' in x)||('home' in x)||('homeId' in x));
+}
+function extractGames(j){
+  if(!j) return [];
+  const a = unwrap(j);
+  if(Array.isArray(a)){
+    const arr = a.filter(looksLikeGame);
+    if(arr.length) return arr;
+    for(let i=0;i<a.length;i++){ const sub = extractGames(a[i]); if(sub.length) return sub; }
+    return [];
+  }
+  if(typeof a==='object'){ for(const k in a){ const sub = extractGames(a[k]); if(sub.length) return sub; } }
+  return [];
+}
+function gid(g){ return g.id!=null?g.id:(g.Id!=null?g.Id:(g.gameId!=null?g.gameId:(g.GameId!=null?g.GameId:g.flashId))); }
+function gstatus(g){ const n = Number(g.status!=null?g.status:(g.Status!=null?g.Status:0)); return isFinite(n)?n:0; }
+function gteams(g){
+  const pick = function(v){ return (v && typeof v==='object') ? (v.name!=null?v.name:(v.title!=null?v.title:'—')) : (v!=null?v:'—'); };
+  const h = g.homeTeam!=null?g.homeTeam:(g.HomeTeam!=null?g.HomeTeam:(g.homeTeamName!=null?g.homeTeamName:g.home));
+  const a = g.awayTeam!=null?g.awayTeam:(g.AwayTeam!=null?g.AwayTeam:(g.awayTeamName!=null?g.awayTeamName:g.away));
+  return {home:pick(h), away:pick(a)};
+}
+function gscorePair(g, pre){
+  const h = g['home'+pre+'Result']!=null?g['home'+pre+'Result']:(g['Home'+pre+'Result']!=null?g['Home'+pre+'Result']:null);
+  const a = g['away'+pre+'Result']!=null?g['away'+pre+'Result']:(g['Away'+pre+'Result']!=null?g['Away'+pre+'Result']:null);
+  if(h!=null && a!=null) return [Number(h), Number(a)];
+  const s = g[pre==='HT'?'htScore':'ftScore'];
+  if(typeof s==='string' && s.indexOf(':')>=0){ const p=s.split(':'); return [Number(p[0]), Number(p[1])]; }
+  return null;
+}
+function gleague(g){
+  const s = g.season!=null?g.season:g.Season;
+  if(s && typeof s==='object'){
+    const l = s.league!=null?s.league:s.League;
+    if(l && typeof l==='object') return l.name!=null?l.name:(l.Name!=null?l.Name:(l.title!=null?l.title:null));
+    if(typeof l==='string') return l;
+  }
+  if(g.league && typeof g.league==='object') return g.league.name!=null?g.league.name:g.league.Name;
+  if(typeof g.league==='string') return g.league;
+  return g.leagueName!=null?g.leagueName:(g.LeagueName!=null?g.LeagueName:null);
+}
+function gelapsed(g){
+  const e = g.elapsed!=null?g.elapsed:g.Elapsed;
+  if(typeof e==='string') return e;
+  const n = Number(e); return isFinite(n)?n:null;
+}
+function leagueExcluded(name){
+  if(!name) return false;
+  try{ return new RegExp(S.exclude, 'i').test(name); }catch(e){ return false; }
+}
+/* ---------- Фильтр «только лиги tier 1–2» (белый список flashScoreId) ----------
+   API не отдаёт уровень лиги — поэтому используется редактируемый белый список.
+   Слаги — это идентификаторы лиг Flashscore (SStats зеркалирует их), например «england/premier-league».
+   Большинство слагов проверено на реальных матчах; если нужная лига отклоняется —
+   её слаг виден в журнале и в чек-листе, добавьте его в список в настройках. */
+function leagueSlug(g){
+  try{
+    const se = g && (g.season!=null?g.season:g.Season);
+    if(se && se.league && se.league.flashScoreId) return String(se.league.flashScoreId);
+    if(g && g.league && typeof g.league==='object' && g.league.flashScoreId) return String(g.league.flashScoreId);
+  }catch(e){}
+  return null;
+}
+function whiteListSet(){
+  const out = {};
+  String(S.leagueWhite==null?'':S.leagueWhite).split(/\r?\n/).forEach(function(l){
+    l = String(l).split('#')[0].trim().toLowerCase();
+    if(l) out[l] = 1;
+  });
+  return out;
+}
+function leagueTierOk(g){
+  if(!S.tierOnly) return {ok:true, slug:null, off:true};
+  const slug = leagueSlug(g);
+  if(slug && whiteListSet()[slug.toLowerCase()]) return {ok:true, slug:slug};
+  return {ok:false, slug:slug};
+}
+
+/* Полные данные матча: {"status":"OK","data":{"game":{...}}} */
+function extractGameFull(j){
+  if(!j || typeof j!=='object') return null;
+  const d = j.data!==undefined ? j.data : j;
+  if(d && typeof d==='object' && !Array.isArray(d)){
+    if(d.game && typeof d.game==='object') return d.game;
+    if(looksLikeGame(d) || d.id!==undefined) return d;
+  }
+  return null;
+}
+
+/* Статистика матча SStats: плоский формат statistics:{shotsOnGoalHome:1,...} + резерв вложенного */
+function extractStats(detail){
+  const flatNodes = deepCollect(detail, function(o){ return typeof o==='object' &&
+    (('shotsOnGoalHome' in o)||('dangerousAttacksHome' in o)||('cornerKicksHome' in o)); });
+  for(let i=0;i<flatNodes.length;i++){ const f = flatStats(flatNodes[i]); if(f) return f; }
+  const nodes = deepCollect(detail, function(o){ return typeof o==='object' &&
+    (('dangerousAttacks' in o)||('DangerousAttacks' in o)||('shotsOnGoal' in o)||('cornerKicks' in o)); });
+  if(!nodes.length) return null;
+  for(let i=0;i<nodes.length;i++){
+    const n = nodes[i];
+    if(n.home && n.away && typeof n.home==='object' && typeof n.away==='object' &&
+      (('dangerousAttacks' in n.home)||('shotsOnGoal' in n.home))) return sumStats(n.home, n.away);
+  }
+  if(nodes.length>=2) return sumStats(nodes[0], nodes[1]);
+  return null;
+}
+function flatStats(o){
+  const g = function(k){ const v = o[k]; if(v===null||v===undefined) return null; const n = Number(v); return isFinite(n)?n:null; };
+  const pair = function(base){
+    const h = g(base+'Home'), a = g(base+'Away');
+    return {h:h, a:a, t:(h!=null&&a!=null)?h+a:null};
+  };
+  const st = {
+    da: pair('dangerousAttacks'), sg: pair('shotsOnGoal'), ck: pair('cornerKicks'),
+    shots: pair('totalShots'), xg: pair('expectedGoals'), pos: pair('ballPossession'), attacks: pair('attacks')
+  };
+  if(st.sg.h!=null || st.sg.a!=null || st.da.h!=null || st.ck.h!=null || st.shots.h!=null) return st;
+  return null;
+}
+function sumStats(h, a){
+  const g = function(o){ if(!o) return null; for(let i=1;i<arguments.length;i++){ const v = o[arguments[i]]; if(v===null||v===undefined) continue; const n = Number(v); if(isFinite(n)) return n; } return null; };
+  const pair = function(k){
+    const hv = g(h,k), av = g(a,k);
+    return {h:hv, a:av, t:(hv!=null&&av!=null)?hv+av:null};
+  };
+  return {
+    da: pair('dangerousAttacks','DangerousAttacks'),
+    sg: pair('shotsOnGoal','shotsOnGoalHome'),
+    ck: pair('cornerKicks','CornerKicks'),
+    shots: pair('totalShots','TotalShots'),
+    xg: pair('expectedGoals','ExpectedGoals'),
+    pos: pair('ballPossession','BallPossession'),
+    attacks: pair('attacks','Attacks')
+  };
+}
+
+/* ---------- Коэффициенты SStats (с контекстом рынка) ---------- */
+function normAll(s){ return String(s==null?'':s).toLowerCase().replace(/\s+/g,''); }
+function collectOddItems(root){
+  const items = [];
+  (function walk(o, d, market){
+    if(d>12 || !o || typeof o!=='object') return;
+    let mkt = market;
+    if(typeof o.marketName==='string') mkt = o.marketName;
+    const nameKeys = ['name','Name','outcome','Outcome','title','Title'];
+    const valKeys = ['value','Value','odd','Odd','price','coef','coefficient'];
+    let nameField = null;
+    for(let i=0;i<nameKeys.length;i++){ if(typeof o[nameKeys[i]]==='string'){ nameField = nameKeys[i]; break; } }
+    let valField = null;
+    for(let i=0;i<valKeys.length;i++){ const n = Number(o[valKeys[i]]); if(isFinite(n)&&n>0.9&&n<40){ valField = valKeys[i]; break; } }
+    if(nameField && valField) items.push({name:String(o[nameField]), value:Number(o[valField]), pair:true, market:mkt});
+    for(const k in o){
+      const v = o[k];
+      if(v && typeof v==='object'){ walk(v, d+1, mkt); continue; }
+      const n = Number(v);
+      if(isFinite(n) && n>1 && n<26){
+        const kk = String(k).toLowerCase();
+        if(/over|under|больше|меньше|total|тб|тм|winner|odd|коэф/.test(kk)) items.push({name:kk, value:n, pair:false, market:mkt});
+      }
+    }
+  })(root, 0, null);
+  return items;
+}
+/* «Чистые» рынки тоталов матча SStats (проверено на реальных данных) */
+const GOOD_TOTAL_MARKETS = ['goalsover/under','matchgoals','over/underline','over/under'];
+function pickSstatsOdd(items, line, over){
+  if(!items || !items.length) return null;
+  const sideW = over ? '(?:over|больше|тб)' : '(?:under|меньше|тм)';
+  const re = new RegExp('^'+sideW+'[^0-9]*([0-9]+(?:[.,][0-9]+)?)$');
+  for(let i=0;i<items.length;i++){
+    const it = items[i];
+    if(GOOD_TOTAL_MARKETS.indexOf(normAll(it.market||''))<0) continue;
+    const m = normAll(it.name).match(re);
+    if(!m) continue;
+    const l = parseFloat(m[1].replace(',','.'));
+    if(Math.abs(l-line)<0.001) return it.value;
+  }
+  return null;
+}
+/* Резерв live-кэфа: тотал МАТЧА в /Odds/live SStats («Match Goals Over (N+0.5)», Bet365).
+   При N голов на перерыве «Match Goals Over (N+0.5)» — это ТО ЖЕ событие, что «гол во 2-м тайме»:
+   один гол во 2-м тайме ⟺ итоговый тотал ≥ N+1 ⟺ Over (N+0.5).
+   Отсекаем командные тоталы (Home/Away Team Goals) и рынки таймов (First/Second Half). */
+function pickSstatsMatchTotalOdd(items, line, over){
+  if(!items || !items.length) return null;
+  const sideW = over ? '(?:over|больше|тб)' : '(?:under|меньше|тм)';
+  const re = new RegExp('^'+sideW+'[^0-9]*([0-9]+(?:[.,][0-9]+)?)$');
+  for(let i=0;i<items.length;i++){
+    const it = items[i];
+    const mk = normAll(it.market||''), nm = normAll(it.name||'');
+    if(GOOD_TOTAL_MARKETS.indexOf(mk)<0) continue;
+    if(/(first|1st|second|2nd|half)/.test(mk) || /(first|1st|second|2nd|half)/.test(nm)) continue;
+    const m = nm.match(re);
+    if(!m) continue;
+    const l = parseFloat(m[1].replace(',','.'));
+    if(Math.abs(l-line)<0.001) return it.value;
+  }
+  return null;
+}
+/* Резерв live-кэфа: тотал 2-го тайма в /Odds/live SStats (рынки с «Second Half»/«2nd Half») */
+function pickSstatsHalfOdd(items, line, over){
+  if(!items || !items.length) return null;
+  const sideW = over ? '(?:over|больше|тб)' : '(?:under|меньше|тм)';
+  const re = new RegExp('^'+sideW+'[^0-9]*([0-9]+(?:[.,][0-9]+)?)$');
+  for(let i=0;i<items.length;i++){
+    const it = items[i];
+    const mk = normAll(it.market||''), nm = normAll(it.name||'');
+    if(!/(second|2nd)/.test(mk) && !/(second|2nd)/.test(nm)) continue;
+    if(/(first|1st)/.test(mk)) continue;
+    const m = nm.match(re);
+    if(!m) continue;
+    const l = parseFloat(m[1].replace(',','.'));
+    if(Math.abs(l-line)<0.001) return it.value;
+  }
+  return null;
+}
+/* Сбор кэфов заданной линии по ВСЕМ букмекерам из /Odds/{gameId} (рынок Goals Over/Under — полный матч) */
+function sstatsCollectTotalOdds(j, line, over){
+  const out = [];
+  let root = j && typeof j==='object' ? (j.data!==undefined?j.data:j) : null;
+  if(!root) return out;
+  const books = Array.isArray(root)?root:(Array.isArray(root.data)?root.data:null);
+  if(!Array.isArray(books)) return out;
+  const sideW = over?'(?:over|больше|тб)':'(?:under|меньше|тм)';
+  const re = new RegExp('^'+sideW+'[^0-9]*([0-9]+(?:[.,][0-9]+)?)$');
+  for(let i=0;i<books.length;i++){
+    const b = books[i]; if(!b||typeof b!=='object') continue;
+    const bname = b.bookmakerName||b.bookmaker||('Букмекер '+(i+1));
+    const markets = b.odds||b.markets||[];
+    for(let m=0;m<markets.length;m++){
+      const mk = markets[m]; if(!mk||typeof mk!=='object') continue;
+      if(normAll(mk.marketName||'')!=='goalsover/under') continue;   /* только тотал матча, отсекая 1Т/2Т/индивидуальные */
+      const items = mk.odds||[];
+      for(let k=0;k<items.length;k++){
+        const it=items[k]; if(!it||typeof it.name!=='string') continue;
+        const mt = normAll(it.name).match(re);
+        if(!mt) continue;
+        const l = parseFloat(mt[1].replace(',','.'));
+        if(Math.abs(l-line)>=0.001) continue;
+        const v = Number(it.value);
+        if(isFinite(v)&&v>1&&v<100){ out.push({bookmaker:bname, value:v}); break; }
+      }
+    }
+  }
+  return out;
+}
+function avgOdd(list){ if(!list||!list.length) return null; let s=0; for(let i=0;i<list.length;i++) s+=list[i].value; return Math.round(s/list.length*100)/100; }
+function medianOdd(list){
+  if(!list||!list.length) return null;
+  const v = list.map(function(x){ return x.value; }).sort(function(a,b){ return a-b; });
+  const n = v.length;
+  return Math.round((n%2 ? v[(n-1)/2] : (v[n/2-1]+v[n/2])/2)*100)/100;
+}
+
+/* ---------- Pari.ru (через API SStats) ---------- */
+function normName(s){ return String(s==null?'':s).toLowerCase().replace(/ё/g,'е').replace(/[^a-zа-я0-9]/g,''); }
+function nameScore(a,b){
+  const x = normName(a), y = normName(b);
+  if(!x||!y) return 0;
+  if(x===y) return 1;
+  if(x.indexOf(y)>=0||y.indexOf(x)>=0) return .85;
+  const tx = String(a).toLowerCase().split(/[^a-zа-я0-9]+/).filter(Boolean);
+  const ty = String(b).toLowerCase().split(/[^a-zа-я0-9]+/).filter(Boolean);
+  if(!tx.length||!ty.length) return 0;
+  let inter=0;
+  for(let i=0;i<tx.length;i++) if(ty.indexOf(tx[i])>=0) inter++;
+  return inter/Math.max(tx.length,ty.length);
+}
+/* Извлечение matchInfo из /Pari/matches: [{eventId, homeTeam:{name}, awayTeam:{name}, homeScoreHT, ...}] */
+function extractPariMatches(j){
+  let root = j && typeof j==='object' ? (j.data!==undefined?j.data:j) : j;
+  const out = [];
+  (function walk(o, d){
+    if(d>8 || !o || typeof o!=='object') return;
+    if(o.eventId!=null && (o.homeTeam||o.awayTeam)){ out.push(o); return; }
+    for(const k in o) walk(o[k], d+1);
+  })(root, 0);
+  return out;
+}
+/* Сопоставление матча SStats с матчем Pari (обе команды должны совпасть) */
+function matchPari(homeName, awayName, pariList){
+  let best=null, bestScore=0;
+  for(let i=0;i<pariList.length;i++){
+    const p = pariList[i];
+    const ph = p.homeTeam && p.homeTeam.name, pa = p.awayTeam && p.awayTeam.name;
+    if(!ph||!pa) continue;
+    const sh = nameScore(homeName, ph), sa = nameScore(awayName, pa);
+    const s = (sh+sa)/2;
+    if(sh>=.6 && sa>=.6 && s>bestScore){ bestScore=s; best=p; }
+  }
+  return best ? {eventId:best.eventId, score:bestScore, info:best} : null;
+}
+/* Поиск тотала в плоском списке Pari [{name,value}].
+   period='full' — «Full Time. Goals Total: Over 2.50» (доматчевый тотал матча),
+   period='second' — «Second Half. Goals Total: Over 0.50» (2-й тайм, ТБ 0.5 = гол во 2-м тайме).
+   Имена: "Full Time. Goals Total: Over 2.50", "Full Time. Голы: Тотал: Over 2.50",
+          "Second Half. Goals Total: Over 0.50". Отсекаем индивидуальные тоталы. */
+function pariFindTotalOdds(list, line, over, period){
+  period = period || 'full';
+  if(!Array.isArray(list)) return null;
+  const pre = period==='second' ? /(?:second|2nd)[\s.]*half/ : /^full[\s.]*time/;
+  for(let i=0;i<list.length;i++){
+    const o = list[i]; if(!o || typeof o.name!=='string') continue;
+    const nm = String(o.name).toLowerCase().replace(/\s+/g,' ').trim();
+    if(!pre.test(nm)) continue;
+    if(/индивидуальн|individual/i.test(nm)) continue;
+    if(!/голы:?\s*тотал|goals?\s*total/i.test(nm)) continue;
+    const m = nm.match(/(over|under|больше|меньше)\s*([0-9]+(?:[.,][0-9]+)?)/);
+    if(!m) continue;
+    const isOver = /^(over|больше)/.test(m[1]);
+    if(isOver !== !!over) continue;
+    const l = parseFloat(m[2].replace(',','.'));
+    if(Math.abs(l-line)<0.001){
+      const v = Number(o.value);
+      if(isFinite(v) && v>1 && v<100) return v;
+    }
+  }
+  return null;
+}
+/* Подсчёт событий Pari за 1-й тайм: DangerousAttack/Attack/CornerKick/ShotOnTarget/... */
+function pariCountP1(j){
+  const res = { da:{h:0,a:0,t:0}, att:{h:0,a:0,t:0}, ck:{h:0,a:0,t:0},
+                sot:{h:0,a:0,t:0}, soff:{h:0,a:0,t:0}, sblk:{h:0,a:0,t:0}, total:0 };
+  let arr = null;
+  if(j && typeof j==='object'){
+    const d = j.data!==undefined?j.data:j;
+    if(Array.isArray(d)) arr = d;
+    else if(d && typeof d==='object'){
+      if(Array.isArray(d.events)) arr = d.events;
+      else for(const k in d){ if(Array.isArray(d[k]) && d[k].length && d[k][0] && ('type' in d[k][0])){ arr=d[k]; break; } }
+    }
+  }
+  if(!Array.isArray(arr)) return res;
+  for(let i=0;i<arr.length;i++){
+    const e = arr[i]; if(!e || typeof e!=='object') continue;
+    if(Number(e.period)!==1) continue;
+    const ty = String(e.type||'').trim();
+    if(!ty) continue;
+    const side = e.team==='Home'?'h':(e.team==='Away'?'a':null);
+    const bump = function(p){ p.t++; if(side==='h')p.h++; else if(side==='a')p.a++; };
+    res.total++;
+    if(ty==='DangerousAttack') bump(res.da);
+    else if(ty==='Attack') bump(res.att);
+    else if(ty==='CornerKick') bump(res.ck);
+    else if(ty==='ShotOnTarget') bump(res.sot);
+    else if(ty==='ShotOffTarget') bump(res.soff);
+    else if(ty==='ShotBlocked') bump(res.sblk);
+  }
+  return res;
+}
+/* Свежий список live-матчей Pari (кэш 45 сек, дедупликация одновременных вызовов) */
+function ensurePariLive(force){
+  if(!S.usePari) return Promise.resolve([]);
+  if(!force && state.pariLiveTs && Date.now()-state.pariLiveTs < 45000) return Promise.resolve(state.pariLive);
+  if(state.pariLivePromise) return state.pariLivePromise;
+  state.pariLivePromise = (async function(){
+    const j = await API('/Pari/matches', {live:'true', timezone:S.tz}, 0);
+    state.pariLiveTs = Date.now();
+    state.pariLive = j ? extractPariMatches(j) : [];
+    const el = document.getElementById('paricnt');
+    if(el) el.textContent = state.pariLive.length;
+    logLine('🟣 Pari live: '+state.pariLive.length+' матчей', 'prc');
+    state.pariLivePromise = null;
+    return state.pariLive;
+  })().catch(function(){ state.pariLivePromise=null; return []; });
+  return state.pariLivePromise;
+}
+/* Дата матча в таймзоне API (для резервного поиска в /Pari/matches?date=) */
+function gameDateStr(g){
+  const d = g.date||g.Date||g.dateLocal;
+  if(typeof d==='string' && /^\d{4}-\d{2}-\d{2}/.test(d)) return d.slice(0,10);
+  const du = g.dateUtc||g.dateUTC;
+  if(du){ const dt = new Date(du); dt.setMinutes(dt.getMinutes()+(S.tz||0)*60); return dt.toISOString().slice(0,10); }
+  const now = new Date(Date.now()+(S.tz||0)*3600000);
+  return now.toISOString().slice(0,10);
+}
+/* Определение eventId Pari для матча SStats (кэш 5 мин, включая отрицательный результат) */
+async function findPariEventId(g, homeName, awayName){
+  const id = String(gid(g));
+  const c = state.pariMap.get(id);
+  if(c && Date.now()-c.ts < 5*60*1000) return c.ev;
+  const liveList = await ensurePariLive();
+  let m = matchPari(homeName, awayName, liveList);
+  if(!m){
+    const d = gameDateStr(g);
+    for(let off=0; off<300; off+=100){
+      const j = await API('/Pari/matches', {date:d, timezone:S.tz, offset:off}, 3);
+      const arr = j ? extractPariMatches(j) : [];
+      if(arr.length){ m = matchPari(homeName, awayName, arr); if(m) break; }
+      if(!j || arr.length<100) break;
+    }
+  }
+  const ev = m ? m.eventId : null;
+  state.pariMap.set(id, {ev:ev, ts:Date.now()});
+  logLine('🟣 Pari: '+homeName+' – '+awayName+' → eventId '+(ev!=null?ev:'НЕ НАЙДЕН')+(m?' (совпадение '+Math.round(m.score*100)+'%)':''), 'prc');
+  return ev;
+}
+
+/* ---------- Форма из /Games/last-games-stats ---------- */
+function extractForms(l6){
+  if(!l6 || typeof l6!=='object') return null;
+  let root = unwrap(l6);
+  if(!root || typeof root!=='object' || Array.isArray(root)) root = l6;
+  const src = (root.home || root.away) ? root : l6;
+  const sides = {};
+  const keys = ['home','away','Home','Away'];
+  for(let i=0;i<keys.length;i++){ if(src[keys[i]] && typeof src[keys[i]]==='object') sides[keys[i].toLowerCase()] = src[keys[i]]; }
+  if(!sides.home && !sides.away) return null;
+  const parse = function(side){
+    if(!side) return null;
+    const find = function(re, not){
+      let best = null;
+      for(const k in side){
+        if(not && not.test(k)) continue;
+        const n = Number(side[k]);
+        if(isFinite(n) && re.test(k) && best===null) best = n;
+      }
+      return best;
+    };
+    const out = {};
+    out.count  = find(/gamescount|^count$|games$/i);
+    out.wins   = find(/wins?$|winscount|wincount/i, /window/i);
+    out.draws  = find(/draws?$/i);
+    out.losses = find(/loss(es)?$|loses?$/i);
+    out.gfAvg  = find(/avgscore|^score$|avg.*scored|scored|goalsfor|goalsofor|goals?_?for/i, /conceded|opp/i);
+    out.gaAvg  = find(/avgconceded|conceded|against|missed|goals?_?against/i);
+    const n = out.count!=null ? out.count : 6;
+    out.n = n;
+    out.gf = out.gfAvg!=null ? Math.round(out.gfAvg*n*10)/10 : null;
+    out.ga = out.gaAvg!=null ? Math.round(out.gaAvg*n*10)/10 : null;
+    return out;
+  };
+  return {home: parse(sides.home), away: parse(sides.away)};
+}
+
+/* ---------- 💰 Журнал ставок: сохранение, корзины кэфа, авто-расчёт исходов ---------- */
+function saveBets(){ try{ localStorage.setItem('gol2t_bets', JSON.stringify(state.bets.slice(0,500))); }catch(e){} }
+function saveRejectStats(){ try{ localStorage.setItem('gol2t_rejectstats', JSON.stringify(state.rejectStats)); }catch(e){} }
+function updateBetBadge(){
+  const open = state.bets.filter(function(b){ return b.status==='open'; }).length;
+  const el = document.getElementById('betbadge');
+  if(el){ el.textContent = open; el.classList.toggle('hidden', open===0); }
+}
+/* Статусы SStats, при которых матч ещё НЕ завершён (3=1Т, 4=перерыв, 5=2Т, 6/7/11/19=доп. время и пр.) */
+const LIVE_STATUS_SET = {1:1,2:1,3:1,4:1,5:1,6:1,7:1,11:1,19:1};
+/* Корзины кэфа: аналитика перевеса по диапазонам 1.2–1.35 / 1.35–1.5 / 1.5–1.7 */
+const ODD_BUCKETS = ['1.20–1.35','1.35–1.50','1.50–1.70','>1.70'];
+function oddBucket(o){
+  if(o==null || !isFinite(o)) return '—';
+  if(o<1.35) return ODD_BUCKETS[0];
+  if(o<1.5)  return ODD_BUCKETS[1];
+  if(o<=1.7) return ODD_BUCKETS[2];
+  return ODD_BUCKETS[3];
+}
+/* Кэф для расчёта: приоритет у реального кэфа входа (учёт slippage), иначе кэф сигнала */
+function betEffOdd(bet){ return (bet.entryOdd!=null && isFinite(bet.entryOdd) && bet.entryOdd>1) ? bet.entryOdd : bet.odd; }
+function betStats(list){
+  const settled = list.filter(function(b){ return b.status==='won' || b.status==='lost'; });
+  let profit = 0, won = 0, oddSum = 0;
+  for(let i=0;i<settled.length;i++){
+    const o = betEffOdd(settled[i]);
+    const ok = settled[i].status==='won';
+    profit += ok ? (o!=null?(o-1):0) : -1;
+    if(ok) won++;
+    oddSum += (o!=null?o:0);
+  }
+  const n = settled.length;
+  return {n:n, won:won, lost:n-won, wr:n?Math.round(won/n*1000)/10:0, avgOdd:n?Math.round(oddSum/n*100)/100:null, profit:Math.round(profit*100)/100, roi:n?Math.round(profit/n*1000)/10:null};
+}
+/* Авто-расчёт: итоговый счёт сравнивается со счётом перерыва — гол во 2Т ⟺ тотал матча > тотала перерыва.
+   Фоново из цикла опроса: не раньше 62 мин после сигнала, ≤2 запросов за цикл, не чаще раза в 3 мин на ставку;
+   после 10 неудачных попыток — статус «не рассчитано» (доступен ручной повтор). */
+async function settleBets(){
+  if(!S.track) return;
+  const now = Date.now();
+  let checked = 0;
+  for(let i=0;i<state.bets.length;i++){
+    if(checked>=2) break;
+    const bet = state.bets[i];
+    if(bet.status!=='open' || bet.busy) continue;
+    if(now - bet.ts < 62*60*1000) continue;
+    if(bet.lastTry && now - bet.lastTry < 3*60*1000) continue;
+    if(bet.tries>=10){
+      bet.status = 'unknown'; saveBets();
+      renderResults(); renderSignals();
+      logLine('❓ Ставка не рассчитана (10 попыток): '+bet.home+' – '+bet.away+' — можно повторить вручную во вкладке «Результаты»', 'warnc');
+      continue;
+    }
+    bet.busy = true; bet.lastTry = now; bet.tries++; checked++;
+    try{
+      const j = await API('/Games/'+encodeURIComponent(String(bet.id)), {}, 2);
+      const g = j ? extractGameFull(j) : null;
+      if(g){
+        const st = gstatus(g);
+        const ft = gscorePair(g,'FT');
+        const htTot = (bet.ht && bet.ht[0]!=null && bet.ht[1]!=null) ? (Number(bet.ht[0])+Number(bet.ht[1])) : null;
+        if(ft && htTot!=null && !LIVE_STATUS_SET[st]){
+          bet.ft = [Number(ft[0]), Number(ft[1])];
+          bet.won = (bet.ft[0]+bet.ft[1]) > htTot;
+          bet.status = bet.won ? 'won' : 'lost';
+          bet.settledTs = now;
+          saveBets();
+          renderResults(); renderSignals(); renderLive();
+          logLine((bet.won?'✅ Ставка сыграла':'❌ Ставка не сыграла')+': '+bet.home+' – '+bet.away+' · 1Т '+bet.ht[0]+':'+bet.ht[1]+' → итог '+bet.ft[0]+':'+bet.ft[1]+' · кэф '+(betEffOdd(bet)!=null?betEffOdd(bet).toFixed(2):'—'), bet.won?'okc':'warnc');
+        } else saveBets();
+      }
+    }catch(e){}
+    bet.busy = false;
+  }
+}
+
+/* ---------- Проверки условий ---------- */
+function chkRange(name, val, min, max, U){
+  if(val==null || !isFinite(val)) return {name:name, pass:U?null:false, got:'нет данных', need:min+'–'+max};
+  const ok = val>=min && val<=max;
+  return {name:name, pass:ok, got:Math.round(val*100)/100, need:min+'–'+max};
+}
+function chkMin(name, val, min, U){
+  if(val==null || !isFinite(val)) return {name:name, pass:U?null:false, got:'нет данных', need:'≥ '+min};
+  return {name:name, pass:val>=min, got:val, need:'≥ '+min};
+}
+function scoreAllowed(ht){ return scoreSet().indexOf(ht[0]+':'+ht[1])>=0; }
+function formChecks(forms, U){
+  const out = [];
+  const needForm = 'у ОДНОЙ (любой) команды: победы ≥'+S.formW+' И поражения ≥'+S.formL;
+  const needGoals = 'у ОДНОЙ команды: ГЗ ≥'+S.gf+' И ГП ≥'+S.ga+' за 6 матчей (n≥5; при n<6 — средние за матч ≥ '+(S.gf/6).toFixed(2)+' и '+(S.ga/6).toFixed(2)+')';
+  if(!forms || (!forms.home && !forms.away)){
+    out.push({name:'🏆 Форма В/Н/П за 6 матчей', pass:U?null:false, got:'нет данных', need:needForm});
+    out.push({name:'⚽ ГЗ/ГП за 6 матчей', pass:U?null:false, got:'нет данных', need:needGoals});
+    return out;
+  }
+  const sides = [];
+  if(forms.home) sides.push(forms.home);
+  if(forms.away) sides.push(forms.away);
+  /* Трактовка «любая команда» (подтверждена): ОБА условия должны выполняться у ОДНОЙ команды.
+     Форма: есть команда с победами≥N И поражениями≥N — «нестабильная» команда.
+     Голы: есть команда с ГЗ≥N И ГП≥N — команда из результативных матчей. */
+  /* Окно формы: у команды меньше 5 матчей (начало сезона) — данных недостаточно.
+     Порог голов при n<6 сравнивается по среднему за матч (ГЗ/6, ГП/6): короткое окно не должно
+     ужесточать критерий (иначе 11 голов за 5 матчей требовали бы 2.2/матч вместо 1.83). */
+  const minN = 5;
+  const formKnown = sides.some(function(s){ return s.wins!=null && s.losses!=null && s.n>=minN; });
+  const goalsKnown = sides.some(function(s){ return s.gfAvg!=null && s.gaAvg!=null && s.n>=minN; });
+  const formPass = formKnown
+    ? sides.some(function(s){ return s.wins!=null && s.losses!=null && s.n>=minN && s.wins>=S.formW && s.losses>=S.formL; })
+    : (U?null:false);
+  const goalPass = goalsKnown
+    ? sides.some(function(s){ return s.gfAvg!=null && s.gaAvg!=null && s.n>=minN && s.gfAvg>=(S.gf/6-0.001) && s.gaAvg>=(S.ga/6-0.001); })
+    : (U?null:false);
+  const formStr = sides.map(function(s){ return 'В:'+(s.wins!=null?s.wins:'?')+' Н:'+(s.draws!=null?s.draws:'?')+' П:'+(s.losses!=null?s.losses:'?')+' ГЗ:'+(s.gf!=null?s.gf:'?')+' ГП:'+(s.ga!=null?s.ga:'?')+' n:'+(s.n!=null?s.n:'?'); }).join(' | ');
+  out.push({name:'🏆 Форма В/Н/П за 6 матчей · SStats', pass:formPass, got:formStr, need:needForm});
+  out.push({name:'⚽ ГЗ/ГП за 6 матчей · SStats', pass:goalPass, got:formStr, need:needGoals});
+  return out;
+}
+
+/* ---------- Основной цикл ---------- */
+let pollTimer = null;
+function restartPolling(){
+  if(pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(pollLive, Math.max(15, S.poll|0)*1000);
+  pollLive();
+}
+async function pollLive(){
+  if(!S.running) return;
+  const j = await API('/Games/list', {Live:'true', Limit:1000, TimeZone:S.tz}, 0);
+  if(!j){ setConn('off','Ошибка сети'); return; }
+  const games = extractGames(j);
+  state.live.clear();
+  for(let i=0;i<games.length;i++){ const id = gid(games[i]); if(id!=null) state.live.set(String(id), games[i]); }
+  setConn('on','Подключено · '+games.length+' матчей');
+  renderLive();
+
+  const candidates = [];
+  for(let i=0;i<games.length;i++){
+    const g = games[i];
+    const id = String(gid(g)); if(id==='null'||id==='undefined') continue;
+    if(state.analyzed.has(id) || state.inflight.has(id)) continue;
+    const st = gstatus(g);
+    const ht = gscorePair(g,'HT');
+    const el = gelapsed(g);
+    const isCandidate = (st===4) || (S.allow2h && st===5 && ht && el!=null && Number(el)<=52);
+    if(isCandidate) candidates.push(g);
+  }
+  if(candidates.length && S.usePari) ensurePariLive();   /* прогрев кэша Pari (1 запрос на цикл) */
+  settleBets();   /* 💰 авто-расчёт завершившихся матчей из журнала ставок (фоном, ≤2 запроса за цикл) */
+  for(let i=0;i<candidates.length;i++){
+    const g = candidates[i];
+    const id = String(gid(g));
+    state.inflight.add(id);
+    state.analyzed.add(id);
+    const p = analyzeMatch(g);
+    if(p && typeof p.finally==='function') p.finally(function(){ state.inflight.delete(id); });
+    else p.then(function(){ state.inflight.delete(id); }, function(){ state.inflight.delete(id); });
+  }
+}
+
+/* ---------- Анализ матча-кандидата: сбор данных из SStats + Pari ---------- */
+async function analyzeMatch(g){
+  const id = String(gid(g));
+  const t = gteams(g);
+  const label = t.home+' – '+t.away;
+  const U = !S.strict;
+  const checks = [];
+  logLine('⏸ Перерыв: '+label+' — начинаю анализ', 'okc');
+
+  /* БЕСПЛАТНЫЕ ПРОВЕРКИ: счёт 1Т и тип турнира (0 запросов) */
+  let ht = gscorePair(g,'HT');
+  let htStr = ht ? (ht[0]+':'+ht[1]) : '—';
+  if(ht && scoreAllowed(ht)) checks.push({name:'Счёт на перерыве '+htStr, pass:true, got:htStr, need:scoreSet().join(', ')});
+  else checks.push({name:'Счёт на перерыве '+htStr, pass:false, got:htStr, need:scoreSet().join(', ')});
+
+  /* Ставка «2-й тайм, ТБ 0.5» от счёта 1Т не зависит: и 0:0, и 1:1, и 2:3 требуют один гол во 2-м тайме.
+     Матчи с 2+ голами в 1Т больше не отклоняются — все счета из списка стратегии равнозначны. */
+  if(ht && (ht[0]+ht[1])>=2)
+    logLine('ℹ️ '+label+': голов в 1Т = '+(ht[0]+ht[1])+' — ставка «2-й тайм, ТБ 0.5» от счёта 1Т не зависит, анализ продолжается', 'okc');
+
+  const lg = gleague(g);
+  if(leagueExcluded(lg)) checks.push({name:'Тип турнира', pass:false, got:lg, need:'не кубок / товарищеский / юношеский / женский'});
+  else checks.push({name:'Тип турнира', pass:true, got:lg||'лига не определена', need:'не кубок / товарищеский / юношеский / женский'});
+
+  /* Уровень лиги: только tier 1–2 из белого списка (редактируется в настройках).
+     Проверка бесплатная (0 запросов) — слабые лиги отсеиваются ДО запросов к API,
+     что резко экономит лимит запросов и убирает матчи с неполными данными. */
+  const tier = leagueTierOk(g);
+  if(tier.ok)
+    checks.push({name:'Уровень лиги (tier 1–2)', pass:true, got:(lg||'лига не определена')+(tier.slug?' · '+tier.slug:''), need:S.tierOnly?'лига из белого списка tier 1–2':'фильтр выключен'});
+  else{
+    checks.push({name:'Уровень лиги (tier 1–2)', pass:false, got:(lg?lg+' · ':'')+(tier.slug||'слаг лиги не определён'), need:'лига из белого списка tier 1–2 (настройки)'});
+    logLine('🚫 '+label+': лига вне белого списка tier 1–2 — '+(tier.slug||'слаг не определён')+'. Слаг можно добавить в настройках', 'warnc');
+  }
+
+  if(checks.some(function(c){return c.pass===false;})){
+    return decide({id:id, game:g, detail:g, stats:null, forms:null, pari:null, checks:checks,
+      liveOdd:null, liveSrc:null, liveMkt:null, preOdd:null, preList:[], ht:ht, htPari:null, league:lg, ts:Date.now(),
+      glicko:null, summary:null});
+  }
+
+  /* 1) Доматчевый кэф ТБ 2.5 (fail-fast).
+     PRIMARY: Pari prematchOdds «Full Time. Goals Total: Over 2.50» — реальный кэф в конторе, где делается ставка.
+     FALLBACK: SStats /Odds/{id} — МЕДИАНА по букмекерам (среднее искажается выбросами вроде битых кэфов). */
+  let preOdd = null, preList = [], preSrc = null;
+  let pev = null, p1 = null, pinfo = null, pmatch = null;
+  if(S.usePari){
+    pev = await findPariEventId(g, t.home, t.away);
+    if(pev!=null){
+      const mr1 = await API('/Pari/match/'+encodeURIComponent(String(pev)), {}, 2);
+      if(mr1){
+        const mu1 = unwrap(mr1);
+        pmatch = (mu1 && typeof mu1==='object') ? mu1 : mr1;
+        if(pmatch && pmatch.matchInfo) pinfo = pmatch.matchInfo;
+        if(pmatch && Array.isArray(pmatch.prematchOdds)){
+          const po = pariFindTotalOdds(pmatch.prematchOdds, 2.5, true);
+          if(po){ preOdd = po; preSrc = 'pari'; }
+        }
+      }
+    }
+  }
+  if(preOdd==null){
+    const oddsResp = await API('/Odds/'+encodeURIComponent(id), {}, 2);
+    preList = oddsResp ? sstatsCollectTotalOdds(oddsResp, 2.5, true) : [];
+    if(preList.length){ preOdd = medianOdd(preList); preSrc = 'sstats'; }
+  }
+  const preCheck = preOdd!=null
+    ? chkRange('📊 Кэф ТБ 2.5 до матча'+(preSrc==='pari'?' · Pari.ru (prematch)':' · SStats ('+preList.length+' букмек., медиана)'), preOdd, S.preMin, S.preMax, U)
+    : chkRange('📊 Кэф ТБ 2.5 до матча', null, S.preMin, S.preMax, U);
+  checks.push(preCheck);
+  if(S.failFast && preCheck.pass===false){
+    return decide({id:id, game:g, detail:g, stats:null, forms:null, pari:{ev:pev, p1:null, info:pinfo, match:pmatch}, checks:checks,
+      liveOdd:null, liveSrc:null, liveMkt:null, preOdd:preOdd, preList:preList, ht:ht, htPari:null, league:lg, ts:Date.now(),
+      glicko:null, summary:null});
+  }
+
+  /* 2) Полные данные матча SStats — счёт 1Т, удары в створ, угловые.
+     В первые секунды перерыва SStats может ещё НЕ наполнить статистику (поля null):
+     ждём и переспрашиваем в течение перерыва — до 8 попыток с паузой 20 сек. */
+  const statsEmpty = function(st){ return !st || (st.sg.t==null && st.ck.t==null && st.da.t==null && st.shots.t==null); };
+  let detailRaw = await API('/Games/'+encodeURIComponent(id), {}, 1);
+  let detail = extractGameFull(detailRaw) || g;
+  let stats = extractStats(detail);
+  const htD = gscorePair(detail,'HT'); if(htD) ht = htD;
+  let attempts = 0;
+  while(statsEmpty(stats) && attempts < 8){
+    attempts++;
+    logLine('🔄 '+label+': SStats ещё не наполнил статистику 1Т — пауза 20 сек и повтор ('+attempts+'/8)', 'warnc');
+    await new Promise(function(res){ setTimeout(res, 20000); });
+    detailRaw = await API('/Games/'+encodeURIComponent(id), {}, 1);
+    const d2 = extractGameFull(detailRaw);
+    if(d2){ detail = d2; stats = extractStats(detail) || stats; const h2 = gscorePair(d2,'HT'); if(h2) ht = h2; }
+  }
+  if(!statsEmpty(stats) && attempts>0) logLine('✓ '+label+': статистика SStats получена после '+attempts+' повтор(ов)', 'okc');
+  if(statsEmpty(stats)) logLine('⚠️ '+label+': статистика SStats не появилась за '+attempts+' попыток — удары/угловые берутся из резерва Pari', 'warnc');
+
+  /* 3) Pari: события 1Т (опасные атаки). eventId и данные матча уже получены на шаге 1 */
+  if(S.usePari && pev!=null && p1==null){
+    const evResp = await API('/Pari/events/'+encodeURIComponent(String(pev)), {}, 1);
+    p1 = pariCountP1(evResp);
+  }
+  const pari = {ev:pev, p1:p1, info:pinfo, match:pmatch};
+
+  /* Опасные атаки 1Т: ОСНОВНОЙ источник Pari (у SStats поле часто null), резерв SStats */
+  let daVal = null, daSrc = null;
+  if(p1 && p1.da.t>0){ daVal = p1.da.t; daSrc = 'pari'; }
+  if(daVal==null && stats && stats.da.t!=null){ daVal = stats.da.t; daSrc = 'sstats'; }
+  checks.push(chkMin('⚡ Опасные атаки 1Т (сумма)'+(daSrc==='pari'?' · Pari.ru':(daSrc==='sstats'?' · SStats':'')), daVal, S.minDA, U));
+
+  /* Удары в створ 1Т: ОСНОВНОЙ источник SStats, резерв Pari (ShotOnTarget) */
+  let sgVal = null, sgSrc = null;
+  if(stats && stats.sg.t!=null){ sgVal = stats.sg.t; sgSrc = 'sstats'; }
+  if(sgVal==null && p1 && p1.sot.t>0){ sgVal = p1.sot.t; sgSrc = 'pari'; }
+  checks.push(chkMin('🎯 Удары в створ 1Т (сумма)'+(sgSrc==='sstats'?' · SStats':(sgSrc==='pari'?' · Pari.ru (резерв)':'')), sgVal, S.minSG, U));
+
+  /* Угловые 1Т: ОСНОВНОЙ источник SStats, резерв Pari (CornerKick) */
+  let ckVal = null, ckSrc = null;
+  if(stats && stats.ck.t!=null){ ckVal = stats.ck.t; ckSrc = 'sstats'; }
+  if(ckVal==null && p1 && p1.ck.t>0){ ckVal = p1.ck.t; ckSrc = 'pari'; }
+  checks.push(chkMin('🚩 Угловые 1Т (сумма)'+(ckSrc==='sstats'?' · SStats':(ckSrc==='pari'?' · Pari.ru (резерв)':'')), ckVal, S.minCK, U));
+
+  /* 4) Форма и голы за последние 6 матчей — SStats (1 запрос) */
+  const l6 = await API('/Games/last-games-stats', {gameId:id, limit:6}, 2);
+  const forms = extractForms(l6);
+  checks.push.apply(checks, formChecks(forms, U));
+
+  /* 5) Live-кэф «2-й тайм, ТБ 0.5» (гол во 2-м тайме) при сигнале. Цепочка источников:
+     1. Pari currentOdds «Second Half. Goals Total: Over 0.50» — прямой рынок в конторе ставки.
+     2. Pari currentOdds «Full Time. Goals Total: Over (N+0.5)», N = голов на перерыве —
+        математически ТО ЖЕ событие: гол во 2-м тайме ⟺ итоговый тотал ≥ N+1.
+        Проверено на реальных матчах на перерыве: при 1:1 Second Half O0.5=1.09 ≈ Full Time O2.5=1.10;
+        при 0:0 Second Half O0.5=1.23 ≈ Full Time O0.5=1.25. Тотал матча у Pari доступен даже тогда,
+        когда рынок 2-го тайма приостановлен.
+     3. На перерыве Pari может кратковременно приостанавливать live-рынки — ждём и переспрашиваем
+        (до 4×25 сек), каждый раз проверяя оба рынка Pari.
+     4. SStats /Odds/live (Bet365): эквивалент «Match Goals Over (N+0.5)», затем рынки 2-го тайма.
+     Ставка не зависит от счёта 1Т: и 0:0, и 1:1, и 2:3 одинаково требуют один гол во 2-м тайме. */
+  const htGoals = (ht && ht[0]!=null && ht[1]!=null) ? (Number(ht[0])+Number(ht[1])) : null;
+  const eqLine = (htGoals!=null) ? (htGoals+0.5) : null;
+  let liveOdd = null, liveSrc = null, liveMkt = null;
+  const pariLiveProbe = function(pm){
+    if(!pm || !Array.isArray(pm.currentOdds) || liveOdd!=null) return;
+    const lo = pariFindTotalOdds(pm.currentOdds, 0.5, true, 'second');
+    if(lo){ liveOdd = lo; liveSrc = 'pari'; liveMkt = 'Second Half. Goals Total: Over 0.50'; return; }
+    if(eqLine!=null){
+      const fo = pariFindTotalOdds(pm.currentOdds, eqLine, true, 'full');
+      if(fo){ liveOdd = fo; liveSrc = 'pari-ft'; liveMkt = 'Full Time. Goals Total: Over '+eqLine.toFixed(2)+' ≡ гол во 2-м тайме'; }
+    }
+  };
+  pariLiveProbe(pmatch);
+  let oddTries = 0;
+  while(liveOdd==null && pev!=null && oddTries < 4){
+    oddTries++;
+    logLine('🔄 '+label+': live-кэф «2-й тайм, ТБ 0.5» у Pari недоступен — жду 25 сек и переспрашиваю ('+oddTries+'/4); параллельно проверю эквивалент «Матч, ТБ '+(eqLine!=null?eqLine.toFixed(2):'—')+'»', 'warnc');
+    await new Promise(function(res){ setTimeout(res, 25000); });
+    const mr2 = await API('/Pari/match/'+encodeURIComponent(String(pev)), {}, 1);
+    if(mr2){
+      const mu2 = unwrap(mr2);
+      const pm2 = (mu2 && typeof mu2==='object') ? mu2 : mr2;
+      if(pm2 && Array.isArray(pm2.currentOdds)) pmatch = pm2;
+      pariLiveProbe(pm2);
+    }
+  }
+  if(liveOdd==null){
+    const lv = await API('/Odds/live/'+encodeURIComponent(id), {}, 1);
+    if(lv){
+      const items = collectOddItems(lv);
+      const lo2 = pickSstatsHalfOdd(items, 0.5, true);
+      if(lo2){ liveOdd = lo2; liveSrc = 'sstats'; liveMkt = 'тотал 2-го тайма Over 0.5 (Bet365)'; }
+      else if(eqLine!=null){
+        const mo = pickSstatsMatchTotalOdd(items, eqLine, true);
+        if(mo){ liveOdd = mo; liveSrc = 'sstats-mg'; liveMkt = 'Match Goals Over '+eqLine.toFixed(2)+' ≡ гол во 2-м тайме (Bet365)'; }
+      }
+    }
+  }
+  if(liveOdd!=null && oddTries>0) logLine('✓ '+label+': live-кэф получен после '+oddTries+' повтор(ов)', 'okc');
+  if(liveOdd!=null && liveMkt) logLine('📈 '+label+': live-кэф '+liveOdd.toFixed(2)+' · рынок: '+liveMkt, 'okc');
+  const liveName = '📈 Кэф «2-й тайм, ТБ 0.5» при сигнале'+(liveSrc==='pari'?' · Pari.ru (live)':(liveSrc==='pari-ft'?' · Pari.ru (live, эквивалент — тотал матча)':(liveSrc==='sstats'?' · SStats live, тотал 2-го тайма (резерв)':(liveSrc==='sstats-mg'?' · SStats live, тотал матча (резерв)':''))));
+  checks.push(chkRange(liveName, liveOdd, S.sigMin, S.sigMax, U));
+
+  /* Доматчевый ТБ 2.5: обработан на шаге 1 (Pari prematch → медиана SStats), здесь дополнений нет */
+
+  /* Сверка счёта 1Т: SStats vs Pari */
+  let htPari = null;
+  if(pinfo && pinfo.homeScoreHT!=null && pinfo.awayScoreHT!=null) htPari = [Number(pinfo.homeScoreHT), Number(pinfo.awayScoreHT)];
+  if(ht && htPari && (ht[0]!==htPari[0] || ht[1]!==htPari[1]))
+    logLine('⚠️ '+label+': счёт 1Т расходится — SStats '+ht[0]+':'+ht[1]+' / Pari '+htPari[0]+':'+htPari[1]+' (принят SStats)', 'warnc');
+
+  return decide({id:id, game:g, detail:detail, stats:stats, forms:forms, pari:pari, checks:checks,
+    liveOdd:liveOdd, liveSrc:liveSrc, liveMkt:liveMkt, preOdd:preOdd, preList:preList, ht:ht, htPari:htPari, league:lg, ts:Date.now(),
+    glicko:null, summary:null});
+}
+
+/* ---------- Решение по чек-листу ---------- */
+async function decide(b){
+  const t = gteams(b.game);
+  const label = t.home+' – '+t.away;
+  const failed = b.checks.filter(function(c){ return c.pass===false; });
+  if(failed.length===0){
+    await fireSignal(b);
+  }else{
+    state.rejected.unshift(b);
+    if(state.rejected.length>120) state.rejected.pop();
+    /* 📊 Счётчик причин отказов: показывает, какие пороги режут больше всего (аналитика порогов) */
+    for(let i=0;i<failed.length;i++){
+      const k = String(failed[i].name).split('·')[0].replace(/\s+$/,'');
+      state.rejectStats[k] = (state.rejectStats[k]||0)+1;
+    }
+    saveRejectStats();
+    renderRejected();
+    logLine('🚫 Отклонён: '+label+' — '+failed.map(function(c){return c.name;}).join('; '), 'warnc');
+  }
+  renderLive();
+}
+
+/* ---------- Сигнал ---------- */
+async function fireSignal(b){
+  const t = gteams(b.game);
+  const label = t.home+' – '+t.away;
+  /* 🕐 Защита от опоздавшего сигнала: анализ с retry-паузами может затянуться за старт 2-го тайма.
+     Свежий статус матча: перерыв → штатный сигнал; 2Т идёт ≤ S.maxLate минут → сигнал с пометкой «поздний»;
+     2Т идёт дольше → отмена: время горит, кэф уже другой, вероятности не те. */
+  let fg = null;
+  try{
+    const freshResp = await API('/Games/'+encodeURIComponent(b.id), {}, 1);
+    fg = freshResp ? extractGameFull(freshResp) : null;
+  }catch(e){}
+  if(!fg){ const lg = state.live.get(String(b.id)); if(lg) fg = lg; }
+  if(fg && gstatus(fg)===5){
+    const elNow = gelapsed(fg);
+    const lateMin = (elNow!=null && isFinite(Number(elNow))) ? Number(elNow) : null;
+    if(lateMin==null || lateMin>(S.maxLate|0)){
+      const rb = Object.assign({}, b, {checks:b.checks.concat([{name:'🕐 Актуальность сигнала', pass:false, got:'2-й тайм уже идёт'+(lateMin!=null?(' — '+lateMin+' мин'):''), need:'сигнал на перерыве или в первые '+(S.maxLate|0)+' мин 2Т'}]), lateCancel:true});
+      state.rejected.unshift(rb);
+      if(state.rejected.length>120) state.rejected.pop();
+      renderRejected();
+      logLine('🚫 Сигнал отменён — опоздание: '+label+', 2-й тайм уже '+(lateMin!=null?lateMin+' мин':'идёт'), 'warnc');
+      renderLive();
+      return;
+    }
+    b.late = true; b.lateMin = lateMin;
+    logLine('⏱ Сигнал «поздний»: '+label+' — 2-й тайм идёт '+lateMin+' мин (лимит '+S.maxLate+')', 'warnc');
+  }
+  logLine('📢 СИГНАЛ: '+label+' ('+(b.ht?b.ht[0]+':'+b.ht[1]:'?')+')'+(b.late?' · ⏱ поздний ('+b.lateMin+' мин 2Т)':''), 'okc');
+  playBeep();
+  if(S.notif && typeof Notification!=='undefined' && Notification.permission==='granted'){
+    try{ new Notification('⚽ Гол во 2-м тайме: '+label, {body:'Счёт на перерыве '+(b.ht?b.ht[0]+':'+b.ht[1]:'—')+'. Ставка: 2-й тайм, ТБ 0.5 (гол во 2-м тайме)'}); }catch(e){}
+  }
+  /* 💰 Запись в журнал ставок: исход рассчитается автоматически после окончания матча */
+  if(S.track){
+    state.bets.unshift({id:String(b.id), home:t.home, away:t.away, league:(b.league||null),
+      ht:(b.ht?[Number(b.ht[0]),Number(b.ht[1])]:null), odd:b.liveOdd, oddSrc:b.liveSrc, mkt:b.liveMkt, preOdd:b.preOdd,
+      ts:Date.now(), late:!!b.late, lateMin:(b.lateMin!=null?b.lateMin:null), entryOdd:null,
+      status:'open', ft:null, won:null, settledTs:null, tries:0, lastTry:0, busy:false});
+    if(state.bets.length>500) state.bets.length = 500;
+    saveBets();
+    logLine('💰 Ставка в журнале результатов: '+label+' · кэф '+(b.liveOdd!=null?b.liveOdd.toFixed(2):'—')+' · исход рассчитается автоматически', 'okc');
+  }
+  /* Обогащение сигнала (не влияет на решение): Glicko-2 + текстовая сводка */
+  const glickoP = API('/Games/glicko/'+encodeURIComponent(b.id), {}, 3).then(function(v){ b.glicko=v; }, function(){});
+  const sumP = API('/Games/text-summary', {id:b.id, limit:6}, 3).then(function(v){ b.summary=v; }, function(){});
+  await Promise.all([glickoP, sumP]);
+
+  state.signals.unshift(b);
+  document.getElementById('sigcnt').textContent = state.signals.length;
+  const badge = document.getElementById('sigbadge');
+  badge.textContent = state.signals.length; badge.classList.remove('hidden');
+  renderSignals();
+  if(S.autoOpen) openSignalModal(b);
+
+  const daSrcT = b.checks.filter(function(c){return /Опасные/.test(c.name);})[0];
+  const sigKef = b.liveOdd!=null ? b.liveOdd.toFixed(2) : '—';
+  await ntfySend(
+    '⚽ ГОЛ ВО 2-М ТАЙМЕ | '+label,
+    '⏸ Счёт на перерыве: '+(b.ht?b.ht[0]+':'+b.ht[1]:'—')+
+    (b.late?'\n⏱ Поздний сигнал: 2-й тайм уже '+b.lateMin+' мин — кэф на входе может отличаться':'')+
+    '\n🏆 '+(b.league||'лига не определена')+
+    '\n📈 Ставка: 2-й тайм, ТБ 0.5 · кэф '+sigKef+(b.liveSrc==='pari'?' (Pari.ru)':(b.liveSrc==='sstats'?' (SStats live)':''))+
+    '\n⚡ Опасные атаки 1Т: '+num(b.pari&&b.pari.p1?b.pari.p1.da.t:(b.stats?b.stats.da.t:null))+
+    ' | 🎯 В створ: '+num(b.stats&&b.stats.sg.t)+' | 🚩 Угловые: '+num(b.stats&&b.stats.ck.t)+
+    '\n📊 Кэф ТБ 2.5 до матча: '+(b.preOdd!=null?b.preOdd.toFixed(2):'—')+
+    '\n'+(daSrcT?('📡 '+daSrcT.name.replace(/^[^·]*·\s*/,'')+' · удары/угловые: SStats · '):'📡 Все данные подтверждены · ')+
+    'счёт 1Т сверен: '+(b.htPari?('✓ ('+b.ht[0]+':'+b.ht[1]+' = Pari '+b.htPari[0]+':'+b.htPari[1]+')'):(b.ht?'— (Pari недоступен)':'—'))+
+    '\n✅ Все условия стратегии выполнены',
+    ['soccer','tada']
+  );
+}
+function num(v){ return v!=null ? v : '—'; }
+function srcBadge(src){
+  if(src==='sstats') return '<span class="srcb ss">SStats</span>';
+  if(src==='pari') return '<span class="srcb pr">Pari.ru</span>';
+  return '';
+}
+
+/* ---------- Модальное окно ---------- */
+function closeModal(){ document.getElementById('modalwrap').classList.remove('open'); }
+document.getElementById('modalwrap').addEventListener('click', function(e){ if(e.target.id==='modalwrap') closeModal(); });
+function renderChecks(checks){
+  let html = '<div class="checks">';
+  for(let i=0;i<checks.length;i++){
+    const c = checks[i];
+    const cls = c.pass===true?'ok':(c.pass===false?'no':'warn');
+    const ico = c.pass===true?'✅':(c.pass===false?'❌':'⚠️');
+    html += '<div class="chk '+cls+'"><span class="ico">'+ico+'</span><span>'+escHtml(c.name)+
+      '<br><small style="color:var(--muted)">'+escHtml(String(c.got))+'</small></span><span class="need">нужно: '+escHtml(String(c.need))+'</span></div>';
+  }
+  return html+'</div>';
+}
+function statsTable(st, t){
+  if(!st) return '<div class="empty" style="padding:20px">Статистика SStats недоступна</div>';
+  const rows = [
+    ['⚡ Опасные атаки', st.da], ['⚔️ Всего атак', st.attacks], ['🎯 Удары в створ', st.sg],
+    ['🥅 Удары всего', st.shots], ['🚩 Угловые', st.ck], ['📈 xG', st.xg], ['🔄 Владение, %', st.pos]
+  ];
+  let html = '<table><tr><th>Показатель</th><th>'+escHtml(t.home)+'</th><th>'+escHtml(t.away)+'</th><th>Сумма</th></tr>';
+  for(let i=0;i<rows.length;i++){
+    const r = rows[i];
+    const sum = (r[1] && r[1].h!=null && r[1].a!=null) ? r[1].t : null;
+    html += '<tr><td>'+r[0]+'</td><td>'+num(r[1]?r[1].h:null)+'</td><td>'+num(r[1]?r[1].a:null)+'</td><td><b>'+num(sum)+'</b></td></tr>';
+  }
+  return html+'</table>';
+}
+function pariEventsTable(p1, t){
+  if(!p1 || !p1.total) return '<div class="empty" style="padding:14px">События Pari за 1-й тайм недоступны</div>';
+  const rows = [
+    ['⚡ Опасные атаки', p1.da, true], ['⚔️ Атаки', p1.att, false],
+    ['🎯 Удары в створ', p1.sot, false], ['↗️ Мимо ворот', p1.soff, false],
+    ['🛡 Удары заблокированы', p1.sblk, false], ['🚩 Угловые', p1.ck, false]
+  ];
+  let html = '<table><tr><th>Событие 1-го тайма</th><th>'+escHtml(t.home)+'</th><th>'+escHtml(t.away)+'</th><th>Всего</th></tr>';
+  for(let i=0;i<rows.length;i++){
+    const r = rows[i];
+    const star = r[2] ? ' <span class="srcb pr">основной источник</span>' : '';
+    html += '<tr><td>'+r[0]+star+'</td><td>'+r[1].h+'</td><td>'+r[1].a+'</td><td><b>'+r[1].t+'</b></td></tr>';
+  }
+  return html+'</table>';
+}
+function sourcesTable(b){
+  const t = gteams(b.game);
+  const daCheck = b.checks.filter(function(c){return /Опасные/.test(c.name);})[0];
+  const daVal = b.pari&&b.pari.p1&&b.pari.p1.da.t ? b.pari.p1.da.t : (b.stats?b.stats.da.t:null);
+  const daSrc = b.pari&&b.pari.p1&&b.pari.p1.da.t ? 'pari' : 'sstats';
+  const liveSrcTxt = b.liveSrc==='pari'?'Pari.ru · /Pari/match (Second Half. Goals Total: Over 0.50)':
+    (b.liveSrc==='pari-ft'?'Pari.ru · /Pari/match (Full Time. Goals Total: Over '+(b.ht?(b.ht[0]+b.ht[1]+0.5).toFixed(2):'—')+' — математический эквивалент «2-й тайм, ТБ 0.5»)':
+    (b.liveSrc==='sstats'?'SStats.net · /Odds/live (тотал 2-го тайма, Bet365)':
+    (b.liveSrc==='sstats-mg'?'SStats.net · /Odds/live (Match Goals Over '+(b.ht?(b.ht[0]+b.ht[1]+0.5).toFixed(2):'—')+' — эквивалент, Bet365)':'не найден (проверены: Pari 2-й тайм, Pari тотал матча, SStats live)')));
+  const preSrcTxt = b.preSrc==='pari'?'Pari.ru · prematchOdds':'SStats.net · /Odds (медиана, '+(b.preList?b.preList.length:0)+' букмек.)';
+  const rows = [
+    ['⏸ Счёт 1-го тайма', (b.ht?b.ht[0]+':'+b.ht[1]:'—'), 'ss',
+      b.htPari ? ('сверка с Pari: '+b.htPari[0]+':'+b.htPari[1]+((b.ht&&b.ht[0]===b.htPari[0]&&b.ht[1]===b.htPari[1])?' ✓ совпадает':' ⚠️ РАСХОДИТСЯ (принят SStats)')) : 'Pari недоступен для сверки'],
+    ['⚡ Опасные атаки 1Т', num(daVal), (daSrc==='pari'?'pr':'ss'),
+      daSrc==='pari'?'Pari.ru · /Pari/events (DangerousAttack, period 1)':'SStats.net · /Games/{id} (dangerousAttacks)'],
+    ['🎯 Удары в створ 1Т', num(b.stats&&b.stats.sg.t), 'ss',
+      'SStats.net · /Games/{id} (shotsOnGoal)'+(b.pari&&b.pari.p1&&b.pari.p1.sot.t?(' · Pari даёт '+b.pari.p1.sot.t+' (менее полный лог)'):'')],
+    ['🚩 Угловые 1Т', num(b.stats&&b.stats.ck.t), 'ss',
+      'SStats.net · /Games/{id} (cornerKicks)'+(b.pari&&b.pari.p1&&b.pari.p1.ck.t?(' · Pari даёт '+b.pari.p1.ck.t+' (менее полный лог)'):'')],
+    ['📊 Кэф ТБ 2.5 до матча', b.preOdd!=null?b.preOdd.toFixed(2):'—', 'ss',
+      preSrcTxt+(b.preList&&b.preList.length?(' · '+b.preList.map(function(p){return p.bookmaker+' '+p.value;}).join(', ')):'')],
+    ['📈 Live-кэф «2-й тайм, ТБ 0.5»', b.liveOdd!=null?b.liveOdd.toFixed(2):'—', ((b.liveSrc==='pari'||b.liveSrc==='pari-ft')?'pr':'ss'), liveSrcTxt+(b.liveMkt?(' · рынок: '+b.liveMkt):'')]
+  ];
+  let html = '<table><tr><th>Показатель</th><th>Значение</th><th>Источник</th><th>Детали</th></tr>';
+  for(let i=0;i<rows.length;i++){
+    const r = rows[i];
+    html += '<tr><td>'+r[0]+'</td><td><b>'+escHtml(String(r[1]))+'</b></td>'+
+      '<td>'+(r[2]==='pr'?'<span class="srcb pr">Pari.ru</span>':'<span class="srcb ss">SStats</span>')+'</td>'+
+      '<td style="text-align:left; font-size:11.5px; color:var(--muted)">'+escHtml(String(r[3]))+'</td></tr>';
+  }
+  return html+'</table>';
+}
+function openSignalModal(b){
+  const t = gteams(b.game);
+  const gl = b.glicko ? unwrap(b.glicko) : null;
+  let glH = gl ? Number(gl.homeWinProbability!=null?gl.homeWinProbability:(gl.homeWinProbabilityPercent!=null?gl.homeWinProbabilityPercent:NaN)) : NaN;
+  let glA = gl ? Number(gl.awayWinProbability!=null?gl.awayWinProbability:(gl.awayWinProbabilityPercent!=null?gl.awayWinProbabilityPercent:NaN)) : NaN;
+  if(isFinite(glH) && glH>=0 && glH<=1) glH = glH*100;
+  if(isFinite(glA) && glA>=0 && glA<=1) glA = glA*100;
+  let sumText = null;
+  if(b.summary){
+    if(typeof b.summary==='string') sumText = b.summary;
+    else { const u = unwrap(b.summary); sumText = (u && typeof u==='object') ? (u.text!=null?u.text:(u.summary!=null?u.summary:null)) : (u!=null?String(u):null); }
+  }
+  const rawBlocks = [
+    ['game (SStats /Games/list)', b.game],
+    ['detail (SStats /Games/{id})', b.detail],
+    ['prematch ТБ 2.5 по букмекерам (SStats /Odds/{id})', b.preList && b.preList.length ? b.preList : null],
+    ['Pari /Pari/match (кэфы, счёт 1Т)', b.pari && b.pari.match ? b.pari.match : null],
+    ['Pari /Pari/events — события 1Т по типам', b.pari && b.pari.p1 && b.pari.p1.total ? b.pari.p1 : null],
+    ['форма (SStats /Games/last-games-stats)', b.forms],
+    ['glicko', b.glicko]
+  ];
+  let rawHtml = '';
+  for(let i=0;i<rawBlocks.length;i++){
+    if(!rawBlocks[i][1]) continue;
+    rawHtml += '<details class="raw"><summary>'+rawBlocks[i][0]+'</summary><pre>'+
+      escHtml(JSON.stringify(rawBlocks[i][1], null, 1)).slice(0,6000)+'</pre></details>';
+  }
+  const teamsHtml = ['home','away'].map(function(side){
+    const f = b.forms ? b.forms[side] : null;
+    const nm = side==='home'?t.home:t.away;
+    const p = side==='home'?glH:glA;
+    let h = '<div class="teambox"><h5>'+(side==='home'?'🏠':'✈️')+' '+escHtml(nm)+'</h5>'+
+      '<div class="kv"><span>В / Н / П</span><b>'+(f?((f.wins!=null?f.wins:'?')+' / '+(f.draws!=null?f.draws:'?')+' / '+(f.losses!=null?f.losses:'?')):'—')+'</b></div>'+
+      '<div class="kv"><span>⚽ ГЗ (забитые)</span><b>'+(f?num(f.gf):'—')+'</b></div>'+
+      '<div class="kv"><span>🥅 ГП (пропущенные)</span><b>'+(f?num(f.ga):'—')+'</b></div>';
+    if(isFinite(p)) h += '<div class="kv"><span>🧠 Glicko: вероятность победы</span><b>'+Math.round(p)+'%</b></div><div class="probbar"><i style="width:'+Math.max(0,Math.min(100,p))+'%"></i></div>';
+    return h+'</div>';
+  }).join('');
+
+  document.getElementById('modal').innerHTML =
+  '<div class="mhead"><button class="x" onclick="closeModal()">✕</button>'+
+  '<h3>🚨 СИГНАЛ: Гол во 2-м тайме ⚽</h3>'+
+  '<div style="font-size:18px; font-weight:800; margin-top:6px">'+escHtml(t.home)+' <span style="color:var(--amber)">'+(b.ht?b.ht[0]+':'+b.ht[1]:'—')+'</span> '+escHtml(t.away)+'</div>'+
+  '<div class="sub">🏆 '+escHtml(b.league||'—')+' · 🕒 '+new Date(b.ts).toLocaleString('ru-RU')+' · 📈 Ставка: <b>2-й тайм, ТБ 0.5</b> · Кэф: <b>'+(b.liveOdd!=null?b.liveOdd.toFixed(2):'—')+'</b>'+((b.liveSrc==='pari'||b.liveSrc==='pari-ft')?' <span class="srcb pr">Pari.ru</span>':(b.liveSrc?' <span class="srcb ss">SStats live</span>':''))+'</div></div>'+
+  '<div class="mbody">'+
+    '<div class="msection"><h4>🎯 Проверка условий стратегии</h4>'+renderChecks(b.checks)+'</div>'+
+    '<div class="msection"><h4>📡 Источники данных (ничего не придумано)</h4>'+sourcesTable(b)+'</div>'+
+    '<div class="twocol">'+
+      '<div class="msection"><h4>🟢 Статистика SStats (на перерыве)</h4>'+statsTable(b.stats, t)+'</div>'+
+      '<div class="msection"><h4>🟣 События Pari.ru за 1-й тайм</h4>'+pariEventsTable(b.pari&&b.pari.p1, t)+'</div>'+
+    '</div>'+
+    '<div class="msection"><h4>🏟 Форма за последние 6 матчей · SStats</h4><div class="twocol">'+teamsHtml+'</div></div>'+
+    (sumText?('<div class="msection"><h4>📝 Текстовая сводка SStats</h4><div style="font-size:12.5px; color:var(--muted); white-space:pre-wrap; line-height:1.6">'+escHtml(String(sumText)).slice(0,3000)+'</div></div>'):'')+
+    '<div class="msection"><h4>🧾 Исходные данные API (для сверки)</h4>'+rawHtml+'</div>'+
+    '<div class="row"><button class="btn primary" onclick="sendNtfyAgain(\''+escHtml(b.id)+'\')">📨 Отправить push повторно</button>'+
+    '<button class="btn" onclick="closeModal()">Закрыть</button></div>'+
+  '</div>';
+  document.getElementById('modalwrap').classList.add('open');
+}
+window.closeModal = closeModal;
+window.sendNtfyAgain = async function(id){
+  const b = state.signals.filter(function(s){ return s.id===String(id); })[0];
+  if(!b) return;
+  const t = gteams(b.game);
+  await ntfySend('⚽ ГОЛ ВО 2-М ТАЙМЕ | '+t.home+' – '+t.away,
+    '⏸ Счёт на перерыве: '+(b.ht?b.ht[0]+':'+b.ht[1]:'—')+'\n📈 Ставка: 2-й тайм, ТБ 0.5 · кэф '+(b.liveOdd!=null?b.liveOdd.toFixed(2):'—'),
+    ['soccer','tada']);
+  logLine('📨 Push отправлен повторно: '+t.home+' – '+t.away, 'okc');
+};
+
+/* ---------- Рендер списков ---------- */
+function statusBadge(g){
+  const st = gstatus(g);
+  const el = gelapsed(g);
+  if(st===4) return '<span class="stbadge htb">⏸ Перерыв</span>';
+  if(st===5) return '<span class="stbadge htb">▶️ 2-й тайм '+(el!=null?el+"'":'')+'</span>';
+  if(st===3) return '<span class="stbadge live">🔴 1-й тайм '+(el!=null?el+"'":'')+'</span>';
+  if(st===6||st===7||st===11||st===19) return '<span class="stbadge live">🔴 В процессе</span>';
+  return '<span class="stbadge fin">Статус '+st+'</span>';
+}
+function renderLive(){
+  const grid = document.getElementById('livegrid');
+  const games = Array.from(state.live.values());
+  let n=0, htN=0;
+  const cards = [];
+  for(let i=0;i<games.length;i++){
+    const g = games[i];
+    const id = String(gid(g));
+    const t = gteams(g);
+    const st = gstatus(g); if(st===4) htN++;
+    const lg = gleague(g);
+    if(S.hideExcl && leagueExcluded(lg)) continue;
+    const ht = gscorePair(g,'HT'), ft = gscorePair(g,'FT');
+    const sig = state.signals.filter(function(s){return s.id===id;})[0];
+    const rej = state.rejected.filter(function(r){return r.id===id;})[0];
+    n++;
+    let extra = '';
+    if(sig) extra += '<div class="mini"><span style="border-color:rgba(6,182,212,.5);color:#67e8f9">📢 СИГНАЛ</span></div>';
+    else if(rej) extra += '<div class="mini"><span>🚫 Отклонён: '+escHtml(rej.checks.filter(function(c){return c.pass===false;}).map(function(c){return c.name;}).join(', ').slice(0,90))+'</span></div>';
+    else if(st===4) extra += '<div class="mini"><span class="spin">⏳</span> Анализ…</div>';
+    cards.push('<div class="card '+(st===4?'ht':'')+(sig?' sig':'')+'">'+
+      '<div class="lg">🏆 '+escHtml(lg||'—')+'</div>'+
+      '<div class="teams">🏠 '+escHtml(t.home)+'<br>✈️ '+escHtml(t.away)+'</div>'+
+      '<div class="score">'+(ft!=null?ft[0]+' : '+ft[1]:(ht!=null?ht[0]+' : '+ht[1]:'—'))+
+        (ht!=null?'<span class="hts">(1Т: '+ht[0]+':'+ht[1]+')</span>':'')+'</div>'+
+      statusBadge(g)+extra+
+      '<div class="row"><button class="btn small" onclick="showGame(\''+escHtml(id)+'\')">📋 Данные матча</button></div>'+
+    '</div>');
+  }
+  document.getElementById('livecnt').textContent = n;
+  document.getElementById('htcnt').textContent = htN;
+  grid.innerHTML = cards.join('') || '<div class="empty"><div class="big">🌙</div>Live-матчей не найдено. Ожидание…</div>';
+}
+function renderSignals(){
+  const grid = document.getElementById('siggrid');
+  if(!state.signals.length){
+    grid.innerHTML = '<div class="empty"><div class="big">📢</div>Сигналов пока нет. Мониторинг идёт — ждём перерывы с подходящими условиями.</div>';
+    return;
+  }
+  const cards = state.signals.map(function(b, i){
+    const t = gteams(b.game);
+    const daVal = b.pari&&b.pari.p1&&b.pari.p1.da.t ? b.pari.p1.da.t : (b.stats?b.stats.da.t:null);
+    const bet = state.bets.filter(function(x){ return String(x.id)===String(b.id); })[0];
+    let outc = '';
+    if(bet){
+      if(bet.status==='won') outc = '<div class="mini"><span style="border-color:rgba(34,197,94,.5);color:#86efac">✅ Ставка сыграла'+(bet.ft?' · итог '+bet.ft[0]+':'+bet.ft[1]:'')+'</span></div>';
+      else if(bet.status==='lost') outc = '<div class="mini"><span style="border-color:rgba(239,68,68,.5);color:#fca5a5">❌ Ставка не сыграла'+(bet.ft?' · итог '+bet.ft[0]+':'+bet.ft[1]:'')+'</span></div>';
+      else outc = '<div class="mini"><span>⏳ Ждём окончания матча — исход рассчитается автоматически</span></div>';
+    }
+    return '<div class="card signalcard flash">'+
+      '<div class="lg">📢 Сигнал #'+(state.signals.length-i)+' · 🕒 '+new Date(b.ts).toLocaleTimeString('ru-RU')+(b.late?' · ⏱ поздний':'')+'</div>'+
+      '<div class="teams">'+escHtml(t.home)+' – '+escHtml(t.away)+'</div>'+
+      '<div class="score">'+(b.ht?b.ht[0]+':'+b.ht[1]:'—')+'<span class="hts">2-й тайм, ТБ 0.5 · кэф '+(b.liveOdd!=null?b.liveOdd.toFixed(2):'—')+'</span></div>'+
+      '<div class="mini"><span>⚡ ОА: <b>'+num(daVal)+'</b>'+(b.pari&&b.pari.p1&&b.pari.p1.da.t?'<span class="srcb pr">Pari</span>':'')+'</span><span>🎯 В створ: <b>'+num(b.stats&&b.stats.sg.t)+'</b><span class="srcb ss">SStats</span></span><span>🚩 Угл: <b>'+num(b.stats&&b.stats.ck.t)+'</b><span class="srcb ss">SStats</span></span><span>📊 ТБ2.5: <b>'+(b.preOdd!=null?b.preOdd.toFixed(2):'—')+'</b></span></div>'+
+      outc+
+      '<div class="row"><button class="btn small primary" onclick="openSignalById(\''+escHtml(b.id)+'\')">🪟 Открыть</button></div>'+
+    '</div>';
+  });
+  grid.innerHTML = cards.join('');
+}
+window.openSignalById = function(id){
+  const b = state.signals.filter(function(s){ return s.id===String(id); })[0];
+  if(b) openSignalModal(b);
+};
+function renderRejected(){
+  const grid = document.getElementById('rejgrid');
+  const se = document.getElementById('rejstats');
+  const keys = Object.keys(state.rejectStats).sort(function(a,b){ return state.rejectStats[b]-state.rejectStats[a]; });
+  let statHtml = '';
+  if(keys.length){
+    statHtml = '<div class="panel" style="margin-bottom:14px"><h2>📊 Причины отказов (счётчик)</h2><div class="mini" style="margin-top:0">';
+    for(let i=0;i<keys.length && i<10;i++) statHtml += '<span>'+escHtml(keys[i])+': <b>'+state.rejectStats[keys[i]]+'</b></span>';
+    statHtml += '</div><p style="color:var(--muted);font-size:12px;margin-top:10px">💡 Порог, который режет почти всё — кандидат на пересмотр, но только после 200+ сигналов. Менять пороги по первым результатам — подгонка (оверфиттинг).</p></div>';
+  }
+  if(se) se.innerHTML = statHtml;
+  if(!state.rejected.length){
+    grid.innerHTML = '<div class="empty"><div class="big">🚫</div>Отклонённых кандидатов нет — либо ещё не было перерывов.</div>';
+    return;
+  }
+  const cards = state.rejected.slice(0,60).map(function(b){
+    const t = gteams(b.game);
+    const skipped = b.checks.some(function(c){ return c.pass==null; });
+    return '<div class="card">'+
+      '<div class="lg">🕒 '+new Date(b.ts).toLocaleTimeString('ru-RU')+' · 🏆 '+escHtml(b.league||'—')+'</div>'+
+      '<div class="teams">'+escHtml(t.home)+' – '+escHtml(t.away)+'</div>'+
+      '<div class="score">'+(b.ht?b.ht[0]+':'+b.ht[1]:'—')+'</div>'+
+      '<div style="margin-top:8px">'+renderChecks(b.checks)+'</div>'+
+      (skipped?'<div class="mini"><span>⏭ Часть критериев не проверялась (быстрый отказ после первого провала)</span></div>':'')+
+      '<div class="row"><button class="btn small" onclick="openRejected(\''+escHtml(b.id)+'\')">🪟 Подробности</button></div>'+
+    '</div>';
+  });
+  grid.innerHTML = cards.join('');
+}
+window.openRejected = function(id){
+  const b = state.rejected.filter(function(r){ return r.id===String(id); })[0];
+  if(b) openSignalModal(b);
+};
+
+/* ---------- 💰 Вкладка «Результаты»: журнал ставок, винрейт, ROI ---------- */
+function renderResults(){
+  const el = document.getElementById('resultsbody');
+  if(!el) return;
+  if(!S.track){
+    el.innerHTML = '<div class="empty" style="padding:24px">💰 Отслеживание результатов выключено — включите чекбокс «Отслеживать результаты сигналов» в настройках (раздел «Поведение и фильтры»).</div>';
+    updateBetBadge();
+    return;
+  }
+  const byBucket = {};
+  for(let i=0;i<state.bets.length;i++){
+    const b = state.bets[i];
+    if(b.status!=='won' && b.status!=='lost') continue;
+    const k = oddBucket(betEffOdd(b));
+    (byBucket[k] = byBucket[k]||[]).push(b);
+  }
+  const total = betStats(state.bets);
+  const open = state.bets.filter(function(b){ return b.status==='open'; });
+  const unknown = state.bets.filter(function(b){ return b.status==='unknown'; });
+  let html = '<table><tr><th>Рассчитано</th><th>Победы</th><th>Поражения</th><th>Винрейт</th><th>Ср. кэф</th><th>Профит (юниты)</th><th>ROI</th></tr>'+
+    '<tr><td><b>'+total.n+'</b></td><td style="color:#86efac">'+total.won+'</td><td style="color:#fca5a5">'+total.lost+'</td><td><b>'+total.wr+'%</b></td><td>'+num(total.avgOdd)+'</td>'+
+    '<td style="color:'+(total.profit>=0?'#86efac':'#fca5a5')+'">'+(total.profit>0?'+':'')+total.profit+'</td>'+
+    '<td><b style="color:'+(total.roi==null||total.roi>=0?'#86efac':'#fca5a5')+'">'+(total.roi!=null?((total.roi>=0?'+':'')+total.roi+'%'):'—')+'</b></td></tr></table>';
+  html += '<table style="margin-top:14px"><tr><th>Корзина кэфа</th><th>Ставок</th><th>Победы</th><th>Винрейт</th><th>Ср. кэф</th><th>ROI</th></tr>';
+  for(let i=0;i<ODD_BUCKETS.length;i++){
+    const st = betStats(byBucket[ODD_BUCKETS[i]]||[]);
+    html += '<tr><td>'+ODD_BUCKETS[i]+'</td><td>'+st.n+'</td><td style="color:#86efac">'+st.won+'</td><td>'+(st.n?st.wr+'%':'—')+'</td><td>'+num(st.avgOdd)+'</td>'+
+      '<td style="color:'+(st.roi==null||st.roi>=0?'#86efac':'#fca5a5')+'">'+(st.roi!=null?((st.roi>=0?'+':'')+st.roi+'%'):'—')+'</td></tr>';
+  }
+  html += '</table><p style="color:var(--muted);font-size:12px;margin-top:8px">💡 Ставка = 1 юнит по кэфу входа (если указан) либо по кэфу сигнала. Выводы о перевесе делайте от 200+ рассчитанных ставок; до этого цифры — ориентир, пороги не подгоняйте.</p>';
+  if(open.length || unknown.length){
+    html += '<h4 style="margin:18px 0 8px;font-size:13.5px;color:var(--cyan)">⏳ Нерассчитанные: '+(open.length+unknown.length)+'</h4><table><tr><th>Матч</th><th>1Т</th><th>Кэф сигнала</th><th>Кэф входа</th><th>Статус</th><th></th></tr>';
+    const rowPending = function(b){
+      const unk = b.status==='unknown';
+      return '<tr><td>'+escHtml(b.home+' – '+b.away)+'<br><small style="color:var(--muted)">'+new Date(b.ts).toLocaleString('ru-RU')+' · '+escHtml(b.league||'—')+(b.late?' · ⏱ поздний':'')+'</small></td>'+
+        '<td>'+(b.ht?b.ht[0]+':'+b.ht[1]:'—')+'</td><td>'+(b.odd!=null?b.odd.toFixed(2):'—')+'</td>'+
+        '<td><input type="number" step="0.01" min="1" style="width:78px;padding:5px 8px" value="'+(b.entryOdd!=null?b.entryOdd:'')+'" placeholder="—" onchange="setEntryOdd(\''+escHtml(b.id)+'\', this.value)"></td>'+
+        '<td>'+(unk?'❓ не удалось рассчитать':'🟢 ждём окончания матча')+'</td>'+
+        '<td>'+(unk?'<button class="btn small" onclick="retryBet(\''+escHtml(b.id)+'\')">🔄 Повторить</button>':'')+'</td></tr>';
+    };
+    for(let i=0;i<unknown.length;i++) html += rowPending(unknown[i]);
+    for(let i=0;i<open.length;i++) html += rowPending(open[i]);
+    html += '</table><p style="color:var(--muted);font-size:12px;margin-top:8px">Кэф входа (необязательно): реальный кэф, по которому поставили. ROI и винрейт считаются по нему; расхождение с кэфом сигнала = slippage. Расчёт запускается автоматически примерно через час после сигнала.</p>';
+  }
+  const settled = state.bets.filter(function(b){ return b.status==='won' || b.status==='lost'; });
+  if(settled.length){
+    html += '<h4 style="margin:18px 0 8px;font-size:13.5px;color:var(--cyan)">🧾 Рассчитанные ставки (последние 40)</h4><table><tr><th>Дата</th><th>Матч</th><th>1Т → итог</th><th>Кэф (вход)</th><th>Результат</th></tr>';
+    for(let i=0;i<settled.length && i<40;i++){
+      const b = settled[i];
+      const eo = betEffOdd(b);
+      html += '<tr><td>'+new Date(b.ts).toLocaleDateString('ru-RU')+'</td><td>'+escHtml(b.home+' – '+b.away)+(b.late?' <span class="hts">⏱</span>':'')+'</td>'+
+        '<td>'+(b.ht?b.ht[0]+':'+b.ht[1]:'—')+' → '+(b.ft?b.ft[0]+':'+b.ft[1]:'—')+'</td>'+
+        '<td>'+(eo!=null?eo.toFixed(2):'—')+(b.entryOdd!=null?' <small style="color:var(--muted)">сигнал: '+(b.odd!=null?b.odd.toFixed(2):'—')+'</small>':'')+'</td>'+
+        '<td>'+(b.status==='won'?'<b style="color:#86efac">✅ +'+(eo!=null?Math.round((eo-1)*100)/100:'—')+'</b>':'<b style="color:#fca5a5">❌ −1.00</b>')+'</td></tr>';
+    }
+    html += '</table>';
+  }
+  el.innerHTML = html;
+  updateBetBadge();
+}
+window.setEntryOdd = function(id, v){
+  const bet = state.bets.filter(function(b){ return String(b.id)===String(id); })[0];
+  if(!bet) return;
+  const f = parseFloat(String(v).replace(',','.'));
+  bet.entryOdd = (isFinite(f) && f>1) ? f : null;
+  saveBets(); renderResults();
+};
+window.retryBet = function(id){
+  const bet = state.bets.filter(function(b){ return String(b.id)===String(id); })[0];
+  if(!bet) return;
+  bet.status = 'open'; bet.tries = 0; bet.lastTry = 0; bet.busy = false;
+  saveBets(); renderResults(); settleBets();
+};
+function betReportText(){
+  const t = betStats(state.bets);
+  const open = state.bets.filter(function(b){ return b.status==='open'; }).length;
+  let s = '⚽ Гол во 2-м тайме — отчёт ('+new Date().toLocaleString('ru-RU')+')\n'+
+    'Рассчитано ставок: '+t.n+' · побед: '+t.won+' · поражений: '+t.lost+'\n'+
+    'Винрейт: '+t.wr+'% · средний кэф: '+num(t.avgOdd)+'\n'+
+    'Профит: '+(t.profit>0?'+':'')+t.profit+' юнитов · ROI: '+(t.roi!=null?((t.roi>=0?'+':'')+t.roi+'%'):'—')+'\n'+
+    'Открытых (ждём матча): '+open;
+  for(let i=0;i<ODD_BUCKETS.length;i++){
+    const list = state.bets.filter(function(b){ return (b.status==='won'||b.status==='lost') && oddBucket(betEffOdd(b))===ODD_BUCKETS[i]; });
+    const st = betStats(list);
+    s += '\n'+ODD_BUCKETS[i]+': ставок '+st.n+' · винрейт '+(st.n?st.wr+'%':'—')+' · ROI '+(st.roi!=null?((st.roi>=0?'+':'')+st.roi+'%'):'—');
+  }
+  return s;
+}
+document.getElementById('btnBetReport').addEventListener('click', function(){
+  const s = betReportText();
+  const done = function(){ logLine('📋 Отчёт по ставкам скопирован в буфер обмена', 'okc'); };
+  if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(s).then(done, function(){}); }
+  else{ try{ const ta = document.createElement('textarea'); ta.value = s; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); done(); }catch(e){} }
+});
+document.getElementById('btnBetClear').addEventListener('click', function(){
+  if(!confirm('Очистить журнал ставок и счётчик причин отказов? Действие необратимо.')) return;
+  state.bets = []; state.rejectStats = {};
+  saveBets(); saveRejectStats();
+  renderResults(); renderRejected();
+  logLine('🗑 Журнал ставок и статистика отказов очищены', 'warnc');
+});
+
+/* ---------- Карточка одного матча ---------- */
+let showGameSeq = 0;
+window.showGame = async function(id){
+  /* Модальное окно открывается СРАЗУ с индикатором загрузки, данные подрисовываются по мере поступления.
+     Все запросы — приоритет 0 (клик пользователя важнее фонового опроса).
+     Поколение (seq) защищает от гонки: если пользователь открыл другое окно, старая загрузка не перезапишет его. */
+  const modalOpen = function(html){
+    document.getElementById('modal').innerHTML = html;
+    document.getElementById('modalwrap').classList.add('open');
+  };
+  const g = state.live.get(String(id));
+  const label0 = g ? (gteams(g).home+' – '+gteams(g).away) : ('Матч '+id);
+  modalOpen(
+    '<div class="mhead"><button class="x" onclick="closeModal()">✕</button>'+
+    '<h3>📋 '+escHtml(label0)+'</h3>'+
+    '<div class="sub">⏳ Загружаю данные матча… (SStats + Pari)</div></div>'+
+    '<div class="mbody"><div class="empty" style="padding:18px">⏳ Запрашиваю свежие данные: статистика, счёт, live-кэф. Окно заполнится автоматически.</div></div>');
+  if(!g){
+    modalOpen(
+      '<div class="mhead"><button class="x" onclick="closeModal()">✕</button>'+
+      '<h3>📋 '+escHtml(label0)+'</h3></div>'+
+      '<div class="mbody"><div class="empty" style="padding:18px">Матч уже ушёл из live-списка (завершился или перерыв пропущен) — данные недоступны.</div>'+
+      '<div class="row"><button class="btn" onclick="closeModal()">Закрыть</button></div></div>');
+    return;
+  }
+  const seq = ++showGameSeq;
+  const stale = function(){ return seq !== showGameSeq; };
+  try{
+    const j = await API('/Games/'+encodeURIComponent(id), {}, 0);
+    if(stale()) return;
+    const d = extractGameFull(j) || g;
+    const t = gteams(d);
+    const st = extractStats(d);
+    const ht = gscorePair(d,'HT'), ft = gscorePair(d,'FT');
+    /* Первая отрисовка: SStats-статистика уже видна, пока грузится Pari */
+    modalOpen(
+      '<div class="mhead"><button class="x" onclick="closeModal()">✕</button>'+
+      '<h3>📋 '+escHtml(t.home)+' – '+escHtml(t.away)+'</h3>'+
+      '<div class="sub">🏆 '+escHtml(gleague(d)||'—')+' · Счёт: '+(ft!=null?ft[0]+':'+ft[1]:'—')+' · 1Т: '+(ht!=null?ht[0]+':'+ht[1]:'—')+' <span class="srcb ss">SStats</span></div></div>'+
+      '<div class="mbody" id="gmbody-'+seq+'">'+
+        '<div class="msection"><h4>🟢 Статистика SStats на текущий момент</h4>'+
+          '<div class="sub" style="margin-bottom:6px">⚠️ SStats обновляет статистику с задержкой ~1–3 минуты; на перерыве монитор дожидается финальных цифр 1Т</div>'+
+          statsTable(st, t)+'</div>'+
+        '<div class="msection" id="gmpari-'+seq+'"><div class="empty" style="padding:12px">⏳ Загружаю live-данные Pari.ru (опасные атаки, кэф «2-й тайм, ТБ 0.5»)…</div></div>'+
+        '<div class="msection"><h4>🧾 Сырые данные</h4><details class="raw"><summary>/Games/'+escHtml(id)+'</summary><pre>'+escHtml(JSON.stringify(d, null, 1)).slice(0,9000)+'</pre></details></div>'+
+        '<div class="row"><button class="btn" onclick="closeModal()">Закрыть</button></div>'+
+      '</div>');
+    /* Pari-блок догружается отдельно и не блокирует открытие окна */
+    if(S.usePari){
+      try{
+        let pariBlock = '';
+        let pev = null;
+        try{ pev = await findPariEventId(d, t.home, t.away); }catch(e){ pev = null; }
+        if(pev!=null){
+          const evResp = await API('/Pari/events/'+encodeURIComponent(String(pev)), {}, 0);
+          const mResp = await API('/Pari/match/'+encodeURIComponent(String(pev)), {}, 0);
+          if(stale()) return;
+          const p1 = pariCountP1(evResp);
+          let co = null, coMkt = '', pScore = '';
+          if(mResp){
+            const mu = unwrap(mResp);
+            const pm = (mu && typeof mu==='object') ? mu : mResp;
+            if(pm && Array.isArray(pm.currentOdds)){
+              co = pariFindTotalOdds(pm.currentOdds, 0.5, true, 'second');
+              if(co!=null) coMkt = 'Second Half. Goals Total: Over 0.50';
+              if(co==null && ht && ht[0]!=null && ht[1]!=null){
+                const eL = Number(ht[0])+Number(ht[1])+0.5;
+                co = pariFindTotalOdds(pm.currentOdds, eL, true, 'full');
+                if(co!=null) coMkt = 'Full Time. Goals Total: Over '+eL.toFixed(2)+' (эквивалент)';
+              }
+            }
+            if(pm && pm.matchInfo){
+              const mi = pm.matchInfo;
+              const mins = mi.liveSeconds!=null ? (Math.floor(mi.liveSeconds/60)+"'"+(mi.liveSeconds%60<10?'0':'')) : '';
+              pScore = '<div class="sub">Pari: счёт '+(mi.homeScore!=null?mi.homeScore:'—')+':'+(mi.awayScore!=null?mi.awayScore:'—')+' · '+mins+' <span class="srcb pr">Pari.ru</span></div>';
+            }
+          }
+          pariBlock = '<div class="msection"><h4>🟣 Pari.ru — события с начала матча (live) '+(p1&&p1.total?'· всего событий: '+p1.total:'')+'</h4>'+pScore+
+            pariEventsTable(p1, t)+
+            (co!=null ? '<div class="chk ok" style="margin-top:8px"><span class="ico">📈</span><span>Кэф «2-й тайм, ТБ 0.50» сейчас: <b>'+co.toFixed(2)+'</b> · рынок: '+coMkt+' (нужно 1.2–1.7 при сигнале)</span></div>' : '<div class="chk" style="margin-top:8px"><span class="ico">📈</span><span>Рынки «2-й тайм, ТБ 0.50» и эквивалентный тотал матча у Pari сейчас не найдены (на перерыве Pari может кратковременно приостанавливать live-рынки)</span></div>')+
+            '</div>';
+        } else {
+          pariBlock = '<div class="msection"><h4>🟣 Pari.ru</h4><div class="empty" style="padding:12px">Матч не найден в списке Pari (проверка ОА и live-кэфа невозможна)</div></div>';
+        }
+        const pb = document.getElementById('gmpari-'+seq);
+        if(pb) pb.innerHTML = pariBlock;
+      }catch(e){
+        const pb = document.getElementById('gmpari-'+seq);
+        if(pb) pb.innerHTML = '<div class="msection"><h4>🟣 Pari.ru</h4><div class="empty" style="padding:12px">⚠️ Не удалось загрузить данные Pari: '+escHtml(String(e.message||e))+netErrHint(e.message)+'. Данные SStats выше — актуальны.</div></div>';
+      }
+    }
+  }catch(e){
+    if(stale()) return;
+    modalOpen(
+      '<div class="mhead"><button class="x" onclick="closeModal()">✕</button>'+
+      '<h3>📋 '+escHtml(label0)+'</h3></div>'+
+      '<div class="mbody"><div class="empty" style="padding:18px">⚠️ Ошибка загрузки данных матча: '+escHtml(String(e.message||e))+netErrHint(e.message)+'</div>'+
+      '<div class="row"><button class="btn" onclick="closeModal()">Закрыть</button></div></div>');
+  }
+};
+
+/* ---------- Тест сигнала ---------- */
+function demoBundle(){
+  const g = {id:999999, status:4, homeTeam:{name:'Арсенал'}, awayTeam:{name:'Челси'},
+    season:{league:{name:'Англия. Премьер-лига', flashScoreId:'england/premier-league'}}, homeHTResult:0, awayHTResult:0};
+  return {
+    id:'999999', game:g, detail:g,
+    stats:{da:{h:null,a:null,t:null}, sg:{h:3,a:2,t:5}, ck:{h:2,a:1,t:3}, shots:{h:6,a:4,t:10}, xg:{h:0.9,a:0.7,t:1.6}, pos:{h:56,a:44}, attacks:{h:40,a:35,t:75}},
+    forms:{home:{wins:3,draws:1,losses:2,gf:12,ga:8,n:6}, away:{wins:2,draws:0,losses:4,gf:13,ga:9,n:6}},
+    pari:{ev:123456, p1:{da:{h:28,a:24,t:52}, att:{h:40,a:35,t:75}, ck:{h:2,a:1,t:3}, sot:{h:3,a:2,t:5}, soff:{h:4,a:3,t:7}, sblk:{h:1,a:2,t:3}, total:145},
+      info:{homeScoreHT:0, awayScoreHT:0}, match:null},
+    checks:[
+      {name:'Счёт на перерыве 0:0', pass:true, got:'0:0', need:scoreSet().join(', ')},
+      {name:'Тип турнира', pass:true, got:'Премьер-лига', need:'не кубок / товарищеский / юношеский / женский'},
+      {name:'Уровень лиги (tier 1–2)', pass:true, got:'Премьер-лига · england/premier-league', need:'лига из белого списка tier 1–2'},
+      {name:'📊 Кэф ТБ 2.5 до матча · Pari.ru (prematch)', pass:true, got:1.55, need:S.preMin+'–'+S.preMax},
+      {name:'⚡ Опасные атаки 1Т (сумма) · Pari.ru', pass:true, got:52, need:'≥ '+S.minDA},
+      {name:'🎯 Удары в створ 1Т (сумма) · SStats', pass:true, got:5, need:'≥ '+S.minSG},
+      {name:'🚩 Угловые 1Т (сумма) · SStats', pass:true, got:3, need:'≥ '+S.minCK},
+      {name:'🏆 Форма В/Н/П за 6 матчей · SStats', pass:true, got:'В:3 Н:1 П:2 | В:2 Н:0 П:4', need:'у одной команды: победы ≥'+S.formW+' и поражения ≥'+S.formL},
+      {name:'⚽ ГЗ/ГП за 6 матчей · SStats', pass:true, got:'ГЗ:12 ГП:8', need:'у одной команды: ГЗ ≥'+S.gf+' и ГП ≥'+S.ga},
+      {name:'📈 Кэф «2-й тайм, ТБ 0.5» при сигнале · Pari.ru (live)', pass:true, got:1.42, need:S.sigMin+'–'+S.sigMax}
+    ],
+    liveOdd:1.42, liveSrc:'pari', liveMkt:'Second Half. Goals Total: Over 0.50', preOdd:1.55, preSrc:'pari',
+    preList:[],
+    ht:[0,0], htPari:[0,0], league:'Англия. Премьер-лига (демо)', ts:Date.now(), glicko:null, summary:null
+  };
+}
+document.getElementById('btnTest').addEventListener('click', function(){
+  openSignalModal(demoBundle());
+  playBeep();
+  ntfySend('⚽ ТЕСТ | Гол во 2-м тайме', '🔔 Это тестовое уведомление мониторинга. Если вы его видите — ntfy настроен верно!', ['bell']);
+});
+document.getElementById('btnTestNtfy').addEventListener('click', function(){
+  ntfySend('⚽ ТЕСТ | Гол во 2-м тайме', '🔔 Тестовое уведомление из настроек мониторинга.', ['bell']);
+});
+
+/* ---------- Ручная проверка матча по ID ---------- */
+document.getElementById('btnManual').addEventListener('click', async function(){
+  const idv = document.getElementById('manualId').value.trim();
+  if(!idv) return;
+  const j = await API('/Games/'+encodeURIComponent(idv), {}, 1);
+  if(!j){ alert('❌ Не удалось получить матч '+idv+'. Проверьте ID и подключение (журнал внизу).'); return; }
+  let g = extractGameFull(j);
+  if(!g){
+    const games = extractGames(j);
+    for(let i=0;i<games.length;i++){ if(String(gid(games[i]))===idv){ g = games[i]; break; } }
+    if(!g && games.length) g = games[0];
+  }
+  if(!g){ alert('❌ Ответ API не распознан как матч. Подробности в журнале.'); return; }
+  const id = String(gid(g)!=null?gid(g):idv);
+  if(state.inflight.has(id)) return;
+  state.inflight.add(id);
+  state.analyzed.delete(id);
+  try{ await analyzeMatch(g); } finally{ state.inflight.delete(id); }
+});
+
+/* ---------- Звук ---------- */
+let AC = null;
+function playBeep(){
+  if(!S.sound) return;
+  try{
+    AC = AC || new (window.AudioContext||window.webkitAudioContext)();
+    const seq = [[880,0],[1180,.18]];
+    for(let i=0;i<seq.length;i++){
+      const o = AC.createOscillator(), gn = AC.createGain();
+      o.type='sine'; o.frequency.value = seq[i][0]; o.connect(gn); gn.connect(AC.destination);
+      const t0 = AC.currentTime + seq[i][1];
+      gn.gain.setValueAtTime(.0001,t0);
+      gn.gain.exponentialRampToValueAtTime(.25,t0+.02);
+      gn.gain.exponentialRampToValueAtTime(.0001,t0+.35);
+      o.start(t0); o.stop(t0+.4);
+    }
+  }catch(e){}
+}
+
+/* ---------- Вкладка «Стратегия» ---------- */
+function renderStrategyInfo(){
+  const rows = [
+    ['⏰','Время сигнала','Перерыв матча (статус 4)'],
+    ['🎯','Прогноз','Тотал + к результату · Ставка: 2-й тайм, ТБ 0.5 (гол во 2-м тайме)'],
+    ['⚽','Суть ставки','Во 2-м тайме ожидается минимум 1 гол: ставка выигрывает, если во 2Т забьют хотя бы один гол — при любом счёте на перерыве из допустимого списка (от счёта 1Т не зависит)'],
+    ['📈','Коэф. при сигнале','от '+S.sigMin+' до '+S.sigMax+' · источник: Pari.ru (резерв SStats live)'],
+    ['🔢','Счёт на перерыве', scoreSet().join(', ')],
+    ['🏟','Матчи',(S.tierOnly?'ТОЛЬКО лиги tier 1–2 из белого списка (высшие дивизионы ведущих стран + 2-е дивизионы сильнейших — редактируется в настройках); ':'')+'исключаются кубковые, товарищеские, юношеские, женские'],
+    ['📊','Начальный кэф ТБ 2.5 (матч)','от '+S.preMin+' до '+S.preMax+' · источник: Pari.ru prematch (резерв: SStats, медиана по букмекерам)'],
+    ['⚡','Опасные атаки 1-й тайм','всего от '+S.minDA+' · источник: Pari.ru (события DangerousAttack 1Т)'],
+    ['🎯','Удары в створ 1-й тайм','всего от '+S.minSG+' · источник: SStats (резерв Pari)'],
+    ['🚩','Угловые 1-й тайм','всего от '+S.minCK+' · источник: SStats (резерв Pari)'],
+    ['🏆','Последние 6 матчей В/Н/П (одна команда)','у ОДНОЙ (любой) команды победы от '+S.formW+' И поражения от '+S.formL+' вместе — «нестабильная» команда · источник: SStats'],
+    ['⚽','Последние 6 матчей голы (одна команда)','у ОДНОЙ (любой) команды ГЗ от '+S.gf+' И ГП от '+S.ga+' вместе (при окне < 6 матчей — по средним за матч) · источник: SStats'],
+    ['🕐','Защита от опоздания','анализ с retry-паузами может затянуться за старт 2-го тайма: если 2Т идёт ≤ '+S.maxLate+' мин — сигнал подаётся с пометкой «поздний», дольше — отменяется (кэф и вероятности уже не те)'],
+    ['💰','Учёт результатов','каждый сигнал пишется в журнал (локально в браузере); после матча итог сверяется со счётом перерыва: гол во 2-м тайме ⟺ тотал матча > тотала перерыва → ставка сыграла. Вкладка «Результаты»: винрейт, профит и ROI, в т.ч. по корзинам кэфа 1.20–1.35 / 1.35–1.50 / 1.50–1.70; кэф входа (необязательно) учитывает slippage']
+  ];
+  document.getElementById('strategyInfo').innerHTML = rows.map(function(r){
+    return '<div class="chk"><span class="ico">'+r[0]+'</span><span>'+r[1]+'</span><span class="need">'+escHtml(r[2])+'</span></div>';
+  }).join('');
+}
+
+/* ---------- Статус соединения и баннер ---------- */
+function setConn(mode, text){
+  const dot = document.getElementById('conndot'), tx = document.getElementById('conntext');
+  dot.className = 'dot '+(mode==='on'?'':(mode==='off'?'off':'idle'));
+  tx.textContent = text;
+}
+function showBanner(){
+  const b = document.getElementById('banner');
+  if(state.errStreak>=3){
+    b.className='banner err';
+    let hint='❌ Не удаётся связаться с API SStats.net ('+state.errStreak+' ошибок подряд). ';
+    if(!S.proxyTemplate){
+      hint+='Вероятные причины: 1) файл открыт во встроенном предпросмотре — скачайте HTML и откройте в обычном браузере (предпросмотр блокирует сеть); 2) браузер блокирует запрос по CORS — включите CORS-прокси. '+
+        '<button class="btn small primary" onclick="quickEnableProxy()">🔄 Включить прокси corsproxy.io</button>';
+    }else{
+      hint+='Прокси тоже не отвечает. Попробуйте другой прокси в настройках или отключите его, если API доступен напрямую. '+
+        '<button class="btn small" onclick="quickDisableProxy()">↩️ Выключить прокси</button>';
+    }
+    b.innerHTML=hint;
+  }else if(state.errStreak>0){
+    b.className='banner warn2';
+    b.innerHTML='⚠️ Последний запрос к API завершился ошибкой. Подробности в журнале внизу экрана.';
+  }else{ b.className='banner'; b.innerHTML=''; }
+}
+window.quickEnableProxy = function(){
+  S.proxyTemplate = 'https://corsproxy.io/?url={url}';
+  saveSettings(); fillSettingsForm(); restartPolling();
+  logLine('🔄 Включён CORS-прокси: '+S.proxyTemplate, 'okc');
+  showBanner();
+};
+window.quickDisableProxy = function(){
+  S.proxyTemplate = '';
+  saveSettings(); fillSettingsForm(); restartPolling();
+  logLine('↩️ CORS-прокси выключен, запросы напрямую', 'warnc');
+  showBanner();
+};
+
+/* ---------- Вкладки ---------- */
+const tabs = document.querySelectorAll('.tab');
+for(let i=0;i<tabs.length;i++){
+  tabs[i].addEventListener('click', function(){
+    for(let k=0;k<tabs.length;k++) tabs[k].classList.remove('active');
+    this.classList.add('active');
+    const names = ['live','signals','rejected','results','strategy','settings'];
+    for(let k=0;k<names.length;k++)
+      document.getElementById('tab-'+names[k]).classList.toggle('hidden', this.dataset.tab!==names[k]);
+    if(this.dataset.tab==='settings') fillSettingsForm();
+    if(this.dataset.tab==='strategy') renderStrategyInfo();
+    if(this.dataset.tab==='results') renderResults();
+    if(this.dataset.tab==='rejected') renderRejected();
+  });
+}
+
+/* ---------- Настройки: форма ---------- */
+function fillSettingsForm(){
+  const textMap = {s_baseUrl:'baseUrl', s_apikey:'apikey', s_ntfy:'ntfy', s_scores:'scores', s_exclude:'exclude', s_leagueWhite:'leagueWhite'};
+  for(const id in textMap) document.getElementById(id).value = S[textMap[id]]!=null?S[textMap[id]]:DEFAULTS[textMap[id]];
+  const proxySel = document.getElementById('s_proxy');
+  const presets = ['', 'https://corsproxy.io/?url={url}', 'https://api.allorigins.win/raw?url={url}'];
+  proxySel.value = presets.indexOf(S.proxyTemplate)>=0 ? S.proxyTemplate : (S.proxyTemplate?'custom':'');
+  document.getElementById('s_proxyUrl').value = S.proxyTemplate!=null?S.proxyTemplate:'';
+  document.getElementById('h_formW').textContent = S.formW;
+  document.getElementById('h_formL').textContent = S.formL;
+  document.getElementById('h_gf').textContent = S.gf;
+  document.getElementById('h_ga').textContent = S.ga;
+  const numMap = {s_rpm:'rpm', s_poll:'poll', s_tz:'tz', s_preMin:'preMin', s_preMax:'preMax',
+    s_minDA:'minDA', s_minSG:'minSG', s_minCK:'minCK', s_sigMin:'sigMin', s_sigMax:'sigMax',
+    s_formW:'formW', s_formL:'formL', s_gf:'gf', s_ga:'ga', s_maxLate:'maxLate'};
+  for(const id in numMap) document.getElementById(id).value = S[numMap[id]];
+  const chkMap = {s_usePari:'usePari', s_failFast:'failFast', s_allow2h:'allow2h', s_strict:'strict', s_autoOpen:'autoOpen', s_sound:'sound', s_notif:'notif', s_hideExcl:'hideExcl', s_tierOnly:'tierOnly', s_running:'running', s_track:'track'};
+  for(const id in chkMap) document.getElementById(id).checked = !!S[chkMap[id]];
+}
+document.getElementById('btnSave').addEventListener('click', function(){
+  const val = function(id){ return document.getElementById(id).value; };
+  S.baseUrl = val('s_baseUrl')||DEFAULTS.baseUrl;
+  S.apikey = val('s_apikey').trim();
+  const pv = val('s_proxy');
+  S.proxyTemplate = pv==='' ? '' : (pv==='custom' ? val('s_proxyUrl').trim() : pv);
+  S.ntfy = val('s_ntfy').trim();
+  S.scores = val('s_scores');
+  S.exclude = val('s_exclude');
+  S.leagueWhite = val('s_leagueWhite');
+  S.rpm = Math.max(5, Math.min(30, parseInt(val('s_rpm'))||28));
+  S.poll = Math.max(15, Math.min(300, parseInt(val('s_poll'))||30));
+  S.tz = Math.max(-12, Math.min(12, parseInt(val('s_tz'))||3));
+  const floats = {s_preMin:'preMin', s_preMax:'preMax', s_sigMin:'sigMin', s_sigMax:'sigMax'};
+  for(const id in floats) S[floats[id]] = parseFloat(String(val(id)).replace(',','.')) || DEFAULTS[floats[id]];
+  const ints = {s_minDA:'minDA', s_minSG:'minSG', s_minCK:'minCK', s_formW:'formW', s_formL:'formL', s_gf:'gf', s_ga:'ga', s_maxLate:'maxLate'};
+  for(const id in ints) S[ints[id]] = parseInt(val(id)) || DEFAULTS[ints[id]];
+  S.maxLate = Math.max(0, Math.min(10, S.maxLate));
+  const chks = {s_usePari:'usePari', s_failFast:'failFast', s_allow2h:'allow2h', s_strict:'strict', s_autoOpen:'autoOpen', s_sound:'sound', s_notif:'notif', s_hideExcl:'hideExcl', s_tierOnly:'tierOnly', s_running:'running', s_track:'track'};
+  for(const id in chks) S[chks[id]] = document.getElementById(id).checked;
+  saveSettings();
+  renderStrategyInfo();
+  updateReqUI();
+  if(S.running) restartPolling();
+  else { if(pollTimer) clearInterval(pollTimer); pollTimer=null; setConn('idle','Мониторинг остановлен'); }
+  logLine('💾 Настройки сохранены. Мониторинг: '+(S.running?'запущен ⏺':'остановлен ⏹')+' · Pari: '+(S.usePari?'вкл':'выкл'), 'okc');
+  alert('✅ Настройки сохранены!');
+});
+document.getElementById('btnRefresh').addEventListener('click', function(){ pollLive(); });
+document.getElementById('s_proxy').addEventListener('change', function(){
+  if(this.value && this.value!=='custom') document.getElementById('s_proxyUrl').value = this.value;
+});
+document.getElementById('s_running').addEventListener('change', function(e){
+  S.running = e.target.checked; saveSettings();
+  if(S.running){ restartPolling(); logLine('▶️ Мониторинг запущен','okc'); }
+  else{ if(pollTimer) clearInterval(pollTimer); pollTimer=null; setConn('idle','Мониторинг остановлен'); logLine('⏹ Мониторинг остановлен','warnc'); }
+});
+
+/* ---------- Часы ---------- */
+setInterval(function(){ document.getElementById('clock').textContent = '🕒 '+new Date().toLocaleTimeString('ru-RU'); }, 1000);
+
+/* ---------- Старт ---------- */
+fillSettingsForm();
+renderStrategyInfo();
+updateReqUI();
+renderResults();
+updateBetBadge();
+logLine('🚀 Монитор «Гол во 2-м тайме» запущен. Лимит: '+S.rpm+' запросов/мин. Источники: SStats.net + '+(S.usePari?'Pari.ru':'(Pari выключен)')+'.', 'okc');
+if(typeof Notification!=='undefined' && Notification.permission==='default'){
+  try{ Notification.requestPermission().catch(function(){}); }catch(e){}
+}
+if(S.running) restartPolling();
+else setConn('idle','Мониторинг остановлен — включите в настройках');
+</script>
+</body>
+</html>
