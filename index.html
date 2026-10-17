@@ -162,6 +162,10 @@
 
   .tl{display:flex;flex-wrap:wrap;gap:6px}
   .tl .ev{background:#161d2b;border:1px solid #243044;border-radius:6px;padding:4px 9px;font-size:11.5px}
+  .src{font-size:9px;border-radius:4px;padding:1px 5px;font-weight:700;letter-spacing:.4px;white-space:nowrap}
+  .src.pari{background:rgba(77,163,255,.15);color:var(--blue)}
+  .src.flash{background:rgba(139,148,163,.15);color:var(--dim)}
+  .src.evs{background:rgba(255,159,67,.15);color:var(--orange)}
 
   .setrow{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:10px 0;color:var(--dim);font-size:13px}
   .setrow input,.setrow select{background:#0e131c;color:var(--txt);border:1px solid var(--line);border-radius:7px;padding:6px 9px;width:230px;font-size:13px}
@@ -371,9 +375,9 @@
 <details>
   <summary>📖 Методология: откуда берется каждое число (без синтетики)</summary>
   <p><b>1. Профиль 76-90' по реальным минутам.</b> История последних N матчей команды берется <b>одним запросом</b> <code>POST /Games/query</code> (Condition <code>HomeTeam = X OR AwayTeam = X</code>, Fields Id/Date/ScoreHomeHT/ScoreAwayHT/ScoreHomeFT/ScoreAwayFT, Order <code>-Date</code>), с фолбэком на <code>/Games/list?Team=X&Ended=true</code>. Затем для каждого матча грузятся <code>events</code> через <code>/Games/{id}</code> и кэшируются в IndexedDB навсегда — голы раскладываются по интервалам <b>по фактической минуте</b> (elapsed + extra, с учетом Own Goal). Если events недоступны, матч помечается и профиль получает бейдж «approx» — это честно показывается в UI.</p>
-  <p><b>2. Удары в створ</b> — только из реальной live-статистики <code>ApiSaStatistics.shotsOnGoalHome/Away</code> (<code>/Games/{id}</code>, обновление каждую минуту; опциональный ускоритель Pari.ru — 10 сек). Матчи без данных исключаются, «0 (0:0)» не допускается как сигнал.</p>
+  <p><b>2. Удары в створ и вся live-статистика</b> — только реальные данные. Основной источник — <code>ApiSaStatistics</code> (<code>/Games/{id}</code>, обновление каждую минуту); ускоритель <code>/Pari/events/{id}</code> — события с точными таймстампами и статистика с обновлением 10 сек. В карточке матча каждая строка помечена реальным источником: <b>PARI</b> (10 сек) &gt; <b>FLASH</b> (60 сек) &gt; <b>СОБ</b> (из событий матча); нет данных — прочерк, никаких выдуманных чисел. Матч без ударов в створ не становится сигналом. Привязка Pari-матча: время старта ±10 мин + нормализованные имена команд.</p>
   <p><b>3. Live-кэфы.</b> <code>/Odds/live/{gameId}</code> (Bet365): из всех маркетов ищется исход «Over {line}», где line = текущий тотал + 0.5. Кэф подставляется в сигнал, журнал и EV-калькулятор. При >12 кандидатах используется <code>/Odds/live-changes/updates-only</code> — обновляем только изменившиеся.</p>
-  <p><b>4. Модель вероятности.</b> Ожидаемые голы в оставшееся время: λ = λ(хозяева) + λ(гости), где λ(сторона) = среднее из «голи стороны после минуты m» и «пропущенные соперника после m» (реальные минуты голов), с множителями: срочность счета (1.0–1.22), красные карточки (×1.25/×0.78), атаки замен 55–75' (×1.08), интенсивность ударов/мин (0.85–1.25), xG-приор Glicko <code>/Games/glicko/{id}</code> (0.8–1.3), momentum Flashscore (асимметрия λ 0.85–1.2 по давлению сторон за последние 15 мин). P = 1 − e^(−λ).</p>
+  <p><b>4. Модель вероятности.</b> Ожидаемые голы в оставшееся время: λ = λ(хозяева) + λ(гости), где λ(сторона) = среднее из «голи стороны после минуты m» и «пропущенные соперника после m» (реальные минуты голов), с множителями: срочность счета (1.0–1.22), красные карточки (×1.25/×0.78), атаки замен 55–75' (×1.08), интенсивность ударов/мин (0.85–1.25), xG-приор Glicko <code>/Games/glicko/{id}</code> (0.8–1.3), momentum Flashscore (асимметрия λ 0.85–1.2 по давлению сторон за последние 15 мин), давление опасными атаками (Pari — точные таймстампы за 15 мин, или дельта снапшотов sstats; 0.9–1.18), xG-разрыв против счёта (0.88–1.25). P = 1 − e^(−λ).</p>
   <p><b>5. Value-гейт.</b> Edge = P(модели) − 1/кэф, в процентных пунктах. Сигнал требует edge ≥ порога при доступном кэфе. Если кэф недоступен — сигнал удерживается до 74' и затем помечается «без кэфа».</p>
   <p><b>6. Закрытие сигналов.</b> Пакетно через <code>GET /Excel/Results?id=a,b,c&header=false</code> (до 500 матчей за запрос, CSV), с фолбэком на <code>/Games/list?Id=...</code>. Журнал больше не зависает в «ожидании».</p>
   <p><b>7. Лимиты и безопасность.</b> Rate-limiter с приоритетами (радар → кэфы → история), API-ключ отправляется только на собственный прокси или напрямую — публичные CORS-прокси его не получают. Профили и events кэшируются в IndexedDB.</p>
@@ -402,7 +406,9 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const fmtMoney = n => Math.round(n).toLocaleString('ru-RU') + ' ₽';
-const normName = s => String(s || '').toLowerCase().replace(/[^a-zа-я0-9]/gi, '');
+/* Нормализация имён для матчинга sstats↔Pari (образец v2): нижний регистр,
+   снятие диакритики (Beşiktaş→besiktas), только буквы/цифры */
+const normName = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zа-я0-9]/gi, '');
 const pad2 = n => String(n).padStart(2, '0');
 const dayKey = () => { const d = new Date(); return d.getFullYear() + pad2(d.getMonth() + 1) + pad2(d.getDate()); };
 
@@ -984,11 +990,35 @@ async function pariSync(){
     }
   }
 }
+/* Привязка sstats-матча к Pari-матчу (образец v2, mapPariMatch):
+   основной способ — время старта ±10 мин + нормализованные имена команд
+   (исключает ложные совпадения одинаковых названий в разных матчах),
+   fallback — словарь по названиям без проверки времени. */
 function pariMatchId(entry){
   if (!PARI.ok || !entry.m) return null;
   const h = entry.m.homeTeam && entry.m.homeTeam.name, a = entry.m.awayTeam && entry.m.awayTeam.name;
   if (!h || !a) return null;
   const nh = normName(h), na = normName(a);
+  const t0 = Date.parse(entry.m.dateUtc || entry.m.date || '');
+  if (!isNaN(t0) && Array.isArray(PARI.matches)){
+    const hit = (x, y) => x === y || (x.length >= 4 && y.length >= 4 && (x.includes(y) || y.includes(x)));
+    for (const pm of PARI.matches){
+      const mi = (pm && pm.matchInfo) ? pm.matchInfo : pm;
+      if (!mi) continue;
+      const st = String(mi.status || '');
+      if (st && !/live|willstart/i.test(st)) continue;
+      const t1 = Date.parse(mi.startDate || mi.start || '');
+      if (isNaN(t1) || Math.abs(t1 - t0) > 600000) continue;
+      const ph = normName(mi.homeTeam ? (mi.homeTeam.name || mi.homeTeamName) : mi.homeName);
+      const pa = normName(mi.awayTeam ? (mi.awayTeam.name || mi.awayTeamName) : mi.awayName);
+      if (!ph || !pa) continue;
+      if (hit(nh, ph) && hit(na, pa)){
+        const evId = mi.eventId != null ? mi.eventId : (mi.id != null ? mi.id : null);
+        if (evId != null) return evId;
+      }
+    }
+  }
+  /* Fallback: словарь по названиям (без проверки времени) */
   if (PARI.byName.has(nh + '|' + na)) return PARI.byName.get(nh + '|' + na);
   return PARI.byLoose.get(nh.slice(0, 8) + '|' + na.slice(0, 8)) || null;
 }
@@ -1025,8 +1055,41 @@ async function pariFastStats(entry){
       walk(d, 0);
       if (cand.length){ soH = cand[0].h; soA = cand[0].a; }
     }
-    if (soH == null && soA == null) return null;
-    return { soH: soH || 0, soA: soA || 0, coH, coA, daH, daA, ts: Date.now() };
+    if (soH == null && soA == null && !Array.isArray(d.events)) return null;
+    /* Точные таймстампы событий (образец v2, parsePariEvents): опасные атаки
+       по 15-минуткам, давление за последние 15 минут, голы с точными минутами.
+       matchTime "HH:MM:SS" → минуты матча (дробно). */
+    let daBH = null, daBA = null, daLast15 = null, playedMin = null, goals = null;
+    if (Array.isArray(d.events) && d.events.length){
+      const mtMin = mt => {
+        const p = String(mt || '').split(':').map(Number);
+        if (p.length < 3 || p.some(isNaN)) return null;
+        return (p[0] * 3600 + p[1] * 60 + p[2]) / 60;
+      };
+      const timed = [];
+      let maxMin = 0;
+      for (const ev of d.events){
+        const mm = mtMin(ev.matchTime);
+        if (mm != null){ timed.push([ev, mm]); if (mm > maxMin) maxMin = mm; }
+      }
+      if (maxMin > 0){
+        daBH = [0,0,0,0,0,0]; daBA = [0,0,0,0,0,0]; daLast15 = 0; goals = [];
+        const idxOf = mn => Math.max(0, Math.min(5, Math.floor((Math.max(mn, 1) - 1) / 15)));
+        for (const [ev, mm] of timed){
+          const cls = ev.EventClass != null ? ev.EventClass : ev.type;
+          if (cls === 'DangerousAttack'){
+            (ev.team === 'Home' ? daBH : daBA)[idxOf(Math.min(mm, 90))]++;
+            if (mm >= maxMin - 15) daLast15++;
+          } else if (cls === 'Goal'){
+            goals.push({ min: mm, team: ev.team });
+          }
+        }
+        playedMin = maxMin;
+      }
+    }
+    return { soH, soA, coH, coA, daH, daA,
+             daBH, daBA, daLast15, playedMin, goals,
+             stFull: (st && st.home && st.away) ? st : null, ts: Date.now() };
   } catch(e){ return null; }
 }
 
@@ -1301,6 +1364,50 @@ function buildModel(entry, R){
     factors.push(['📈 Momentum ' + hs + '% / ' + (100 - hs) + '% (посл. 15 мин)', '×' + mH.toFixed(2) + ' / ×' + mA.toFixed(2)]);
   }
 
+  /* Давление опасными атаками (образец v2): точные таймстампы Pari
+     (ОА за последние 15 мин) или дельта двух снапшотов sstats */
+  let pressLbl = null, pressMult = 1;
+  if (entry.pari && entry.pari.daLast15 != null){
+    const rate = entry.pari.daLast15 / 15;
+    pressMult = clamp(1 + (rate - 1.2) * 0.12, 0.9, 1.18);
+    pressLbl = 'Pari: ' + entry.pari.daLast15 + ' ОА / 15 мин (' + rate.toFixed(1) + '/мин)';
+  } else if (entry.prev && entry.prev.st && entry.cur && entry.cur.st && entry.cur.t &&
+             entry.prev.t && entry.cur.t - entry.prev.t >= 30000){
+    const hasDA = x => (num(x.dangerousAttacksHome) != null || num(x.dangerousAttacksAway) != null);
+    if (hasDA(entry.prev.st) && hasDA(entry.cur.st)){
+      const d0 = (num(entry.prev.st.dangerousAttacksHome) || 0) + (num(entry.prev.st.dangerousAttacksAway) || 0);
+      const d1 = (num(entry.cur.st.dangerousAttacksHome) || 0) + (num(entry.cur.st.dangerousAttacksAway) || 0);
+      const dt = Math.min(5, Math.max(0.5, (entry.cur.t - entry.prev.t) / 60000));
+      const rate = (d1 - d0) / dt;
+      pressMult = clamp(1 + (rate - 1.2) * 0.12, 0.9, 1.18);
+      pressLbl = rate.toFixed(1) + ' ОА/мин (дельта снапшотов sstats)';
+    }
+  }
+  if (pressLbl){
+    lamH *= pressMult; lamA *= pressMult;
+    factors.push(['⚔️ Давление: ' + pressLbl, '×' + pressMult.toFixed(2)]);
+  }
+
+  /* xG против счёта (образец v2): гол назревает, когда xG опережает счёт.
+     Берём максимум из expectedGoals и calculatedXg — как в образце. */
+  const stx = entry.cur && entry.cur.st;
+  if (stx){
+    const hasE = num(stx.expectedGoalsHome) != null || num(stx.expectedGoalsAway) != null;
+    const hasC = num(stx.calculatedXgHome) != null || num(stx.calculatedXgAway) != null;
+    const eX = (num(stx.expectedGoalsHome) || 0) + (num(stx.expectedGoalsAway) || 0);
+    const cX = (num(stx.calculatedXgHome) || 0) + (num(stx.calculatedXgAway) || 0);
+    const xg = (hasE && hasC) ? Math.max(eX, cX) : (hasE ? eX : (hasC ? cX : null));
+    if (xg != null){
+      const totalNow = (num(m.homeResult) || 0) + (num(m.awayResult) || 0);
+      const gap = xg - totalNow;
+      if (Math.abs(gap) >= 0.4){
+        const xm = clamp(1 + gap * 0.1, 0.88, 1.25);
+        lamH *= xm; lamA *= xm;
+        factors.push(['🥅 xG ' + xg.toFixed(1) + ' vs счёт ' + totalNow + ' (разрыв ' + (gap >= 0 ? '+' : '') + gap.toFixed(1) + ')', '×' + xm.toFixed(2)]);
+      }
+    }
+  }
+
   lamH = clamp(lamH, 0.02, 1.6); lamA = clamp(lamA, 0.02, 1.6);
   const lambda = lamH + lamA;
   const P = 1 - Math.exp(-lambda);
@@ -1512,7 +1619,8 @@ function fireSignal(entry, R){
     injuries: null,
     glicko: entry.glicko || null,
     flat: CFG.flat, status: 'pending', final: null, profit: 0,
-    detail: { statsRows: mergedStats(entry), timeline: timelineHtml(entry), profH: R.profH, profA: R.profA }
+    detail: { statsRows: mergedStats(entry), timeline: timelineHtml(entry), profH: R.profH, profA: R.profA,
+      pariDA: (entry.pari && entry.pari.daBH) ? { bH: entry.pari.daBH, bA: entry.pari.daBA } : null }
   };
   JOURNAL.unshift(sig);
   saveJournal();
@@ -1631,7 +1739,7 @@ function upsertList(data){
     if (st === ST.NOT_ANNOUNCED || st === ST.NOT_STARTED || st === ST.POSTPONED || st === ST.CANCELED) continue;
     current.add(m.id);
     let e = MATCHES.get(m.id);
-    if (!e){ e = { m, cur: null, lastDetail: 0, odds: null, oddsTs: 0, oddsMeta: null, glicko: null, pari: null, momentum: null, signaled: false }; MATCHES.set(m.id, e); }
+    if (!e){ e = { m, cur: null, prev: null, lastDetail: 0, odds: null, oddsTs: 0, oddsMeta: null, glicko: null, pari: null, momentum: null, signaled: false }; MATCHES.set(m.id, e); }
     else {
       /* Список — сокращенная форма: сливим, не затирая поля, которых в списке нет
          (например, HT-счет, синхронизированный из полной карточки /Games/{id}) */
@@ -1666,7 +1774,10 @@ async function fetchDetail(e){
   try {
     const full = unwrap(await apiGet('/Games/' + e.m.id, { priority: is2H ? 0 : 2 }));
     if (full){
-      e.cur = { st: full.statistics || null, events: full.events || [] };
+      /* prev-снапшот (образец v2): дельта снапшотов даёт скорость ОА/угловых,
+         когда Pari недоступен; берем его только с реальной статистикой */
+      if (e.cur && e.cur.st) e.prev = e.cur;
+      e.cur = { st: full.statistics || null, events: full.events || [], t: Date.now() };
       e.lastDetail = Date.now();
       /* Полная карточка может быть свежее списка: обновляем минуту и счета */
       const g = full.game || null;
@@ -1990,22 +2101,76 @@ function renderStats(){
 }
 
 /* --- Карточки сигнала --- */
+/* Слияние статистики (образец v2): Pari (обновление 10 сек) > Flashscore (60 сек)
+   > события. В каждой строке показывается РЕАЛЬНЫЙ источник — [PARI]/[FLASH]/[СОБ],
+   никаких выдуманных чисел: нет данных — прочерк. */
 function mergedStats(entry){
-  const st = entry.cur && entry.cur.st, m = entry.m;
-  const rows = [];
-  const row = (e, name, h, a) => ({ e, name, h, a });
-  rows.push(row('⚽', 'Счет', num(m.homeResult) || 0, num(m.awayResult) || 0));
-  rows.push(row('🎯', 'Удары в створ', st && st.shotsOnGoalHome != null ? st.shotsOnGoalHome : '—', st && st.shotsOnGoalAway != null ? st.shotsOnGoalAway : '—'));
-  rows.push(row('💥', 'Удары всего', st && st.totalShotsHome != null ? st.totalShotsHome : '—', st && st.totalShotsAway != null ? st.totalShotsAway : '—'));
-  rows.push(row('⚔️', 'Опасные атаки', st && st.dangerousAttacksHome != null ? st.dangerousAttacksHome : '—', st && st.dangerousAttacksAway != null ? st.dangerousAttacksAway : '—'));
-  rows.push(row('🚩', 'Угловые', st && st.cornerKicksHome != null ? st.cornerKicksHome : '—', st && st.cornerKicksAway != null ? st.cornerKicksAway : '—'));
-  rows.push(row('🥅', 'Владение', st && st.ballPossessionHome != null ? st.ballPossessionHome + '%' : '—', st && st.ballPossessionAway != null ? st.ballPossessionAway + '%' : '—'));
-  rows.push(row('🟨', 'ЖК', st && st.yellowCardsHome != null ? st.yellowCardsHome : '—', st && st.yellowCardsAway != null ? st.yellowCardsAway : '—'));
+  const m = entry.m;
+  const st = entry.cur && entry.cur.st;
+  const P = (entry.pari && entry.pari.stFull) ? entry.pari.stFull : null;
+  const evs = (entry.cur && entry.cur.events) || [];
+  const hId = m && m.homeTeam ? num(m.homeTeam.id) : null;
+  const aId = m && m.awayTeam ? num(m.awayTeam.id) : null;
+  const liveH = num(m.homeResult) || 0, liveA = num(m.awayResult) || 0;
+  /* Карточки/удаления из событий матча — когда статистика недоступна (E) */
+  const evCard = (teamId, red) => {
+    if (teamId == null || !evs.length) return null;
+    let n = 0;
+    for (const e of evs){
+      if (Number(e.type) === 2 && num(e.teamId) === teamId && (/red/i.test(String(e.name || '')) ? 1 : 0) === (red ? 1 : 0)) n++;
+    }
+    return n;
+  };
+  /* Приоритет по каждой строке: Pari → sstats → события */
+  const pick = (pV, sV, eV) => pV != null ? [pV, 'P'] : (sV != null ? [sV, 'S'] : (eV != null ? [eV, 'E'] : [null, 'S']));
+  const pick2 = (pV, sV) => pV != null ? [pV, 'P'] : [sV, 'S'];
+  const pn = (o, k) => (o && o[k] != null) ? num(o[k]) : null;
+  const row = (e, name, h, a, src) => ({ e, name, h: h == null ? '—' : h, a: a == null ? '—' : a, src });
+  /* Владение из Pari: possessionTimeSeconds обеих команд → проценты */
+  let possP = null;
+  if (P && pn(P.home, 'possessionTimeSeconds') != null && pn(P.away, 'possessionTimeSeconds') != null){
+    const hh = pn(P.home, 'possessionTimeSeconds'), aa = pn(P.away, 'possessionTimeSeconds');
+    possP = [Math.round(100 * hh / ((hh + aa) || 1)), Math.round(100 * aa / ((hh + aa) || 1))];
+  }
+  const yc = pick(pn(P && P.home, 'yellowCards'), num(st && st.yellowCardsHome), evCard(hId, false));
+  const ycA = pick(pn(P && P.away, 'yellowCards'), num(st && st.yellowCardsAway), evCard(aId, false));
+  const rc = pick(pn(P && P.home, 'redCards'), num(st && st.redCardsHome), evCard(hId, true));
+  const rcA = pick(pn(P && P.away, 'redCards'), num(st && st.redCardsAway), evCard(aId, true));
+  const shH = pick2(pn(P && P.home, 'shotsOnTarget'), num(st && st.shotsOnGoalHome));
+  const shA = pick2(pn(P && P.away, 'shotsOnTarget'), num(st && st.shotsOnGoalAway));
+  /* Удары всего: Pari = on+off target, sstats = totalShots */
+  const allH = pick2(P ? (pn(P.home, 'shotsOnTarget') || 0) + (pn(P.home, 'shotsOffTarget') || 0) : null, num(st && st.totalShotsHome));
+  const allA = pick2(P ? (pn(P.away, 'shotsOnTarget') || 0) + (pn(P.away, 'shotsOffTarget') || 0) : null, num(st && st.totalShotsAway));
+  /* xG: expectedGoals, при отсутствии — calculatedXg (только Flashscore) */
+  const xgH = pick2(num(st && st.expectedGoalsHome), num(st && st.calculatedXgHome));
+  const xgA = pick2(num(st && st.expectedGoalsAway), num(st && st.calculatedXgAway));
+  const rows = [
+    row('⚽', 'Счет', pick2(pn(P && P.home, 'goals'), liveH)[0], pick2(pn(P && P.away, 'goals'), liveA)[0], P ? 'P' : 'S'),
+    row('🎯', 'Удары в створ', shH[0], shA[0], shH[1] === 'P' || shA[1] === 'P' ? 'P' : 'S'),
+    row('💥', 'Удары всего', allH[0], allA[0], allH[1] === 'P' || allA[1] === 'P' ? 'P' : 'S'),
+    row('⚔️', 'Опасные атаки', pick2(pn(P && P.home, 'dangerousAttacks'), num(st && st.dangerousAttacksHome))[0],
+                      pick2(pn(P && P.away, 'dangerousAttacks'), num(st && st.dangerousAttacksAway))[0], P ? 'P' : 'S'),
+    row('🌀', 'Атаки', pick2(pn(P && P.home, 'attacks'), num(st && st.attacksHome))[0],
+                   pick2(pn(P && P.away, 'attacks'), num(st && st.attacksAway))[0], P ? 'P' : 'S'),
+    row('🚩', 'Угловые', pick2(pn(P && P.home, 'corners'), num(st && st.cornerKicksHome))[0],
+                     pick2(pn(P && P.away, 'corners'), num(st && st.cornerKicksAway))[0], P ? 'P' : 'S'),
+    row('🧤', 'Сейвы', num(st && st.goalkeeperSavesHome), num(st && st.goalkeeperSavesAway), 'S'),
+    row('📦', 'Удары из штрафной', num(st && st.shotsInsideBoxHome), num(st && st.shotsInsideBoxAway), 'S'),
+    row('🥅', 'xG', xgH[0] != null ? (+xgH[0]).toFixed(2) : null, xgA[0] != null ? (+xgA[0]).toFixed(2) : null, 'S'),
+    row('🟨', 'Жёлтые', yc[0], ycA[0], yc[1] === 'P' || ycA[1] === 'P' ? 'P' : (yc[1] === 'E' || ycA[1] === 'E' ? 'E' : 'S')),
+    row('🟥', 'Красные', rc[0], rcA[0], rc[1] === 'P' || rcA[1] === 'P' ? 'P' : (rc[1] === 'E' || rcA[1] === 'E' ? 'E' : 'S')),
+    row('⏱️', 'Владение %', possP ? possP[0] : num(st && st.ballPossessionHome),
+                      possP ? possP[1] : num(st && st.ballPossessionAway), possP ? 'P' : 'S')
+  ];
   return rows;
 }
 function statsTableHtml(rows){
-  let s = '<table class="ptable"><tr><th>Показатель</th><th>🏠</th><th>✈️</th></tr>';
-  for (const r of rows) s += '<tr><td style="text-align:left;color:var(--dim)">' + r.e + ' ' + esc(r.name) + '</td><td><b>' + r.h + '</b></td><td><b>' + r.a + '</b></td></tr>';
+  let s = '<table class="ptable"><tr><th>Показатель</th><th>🏠</th><th>✈️</th><th>ист.</th></tr>';
+  for (const r of rows){
+    const src = r.src === 'P' ? '<span class="src pari">PARI</span>' :
+      (r.src === 'E' ? '<span class="src evs">СОБ</span>' : '<span class="src flash">FLASH</span>');
+    s += '<tr><td style="text-align:left;color:var(--dim)">' + r.e + ' ' + esc(r.name) + '</td><td><b>' + esc(r.h) + '</b></td><td><b>' + esc(r.a) + '</b></td><td>' + src + '</td></tr>';
+  }
   return s + '</table>';
 }
 function timelineHtml(entry){
@@ -2048,6 +2213,25 @@ function momentumSvg(pH, pA){
   s += '<text x="' + pad + '" y="10" fill="#2fd575" font-size="9.5">■ 🏠</text><text x="' + (pad+45) + '" y="10" fill="#4da3ff" font-size="9.5">■ ✈️</text></svg>';
   return s;
 }
+/* Опасные атаки по 15-минуткам из событий Pari (образец v2, svgMomentum):
+   точные таймстампы matchTime — реальные минуты, без интерполяции */
+function svgPariDA(bH, bA){
+  const W = 360, H = 150, pad = 26, bw = (W - pad - 10) / 6;
+  const max = Math.max(4, ...bH, ...bA);
+  let s = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" height="' + H + '">';
+  s += '<line x1="' + pad + '" y1="' + (H - 24) + '" x2="' + (W - 4) + '" y2="' + (H - 24) + '" stroke="#2a3442" stroke-width="1"/>';
+  for (let i = 0; i < 6; i++){
+    const x = pad + i * bw;
+    const hH = (H - 34) * bH[i] / max, hA = (H - 34) * bA[i] / max;
+    s += '<rect x="' + (x + 4) + '" y="' + (H - 24 - hH) + '" width="' + (bw / 2 - 6) + '" height="' + hH + '" rx="2" fill="#2fd575" opacity="' + (i >= 4 ? 1 : 0.55) + '"/>';
+    s += '<rect x="' + (x + bw / 2 + 2) + '" y="' + (H - 24 - hA) + '" width="' + (bw / 2 - 6) + '" height="' + hA + '" rx="2" fill="#4da3ff" opacity="' + (i >= 4 ? 1 : 0.55) + '"/>';
+    s += '<text x="' + (x + bw / 2) + '" y="' + (H - 10) + '" fill="#8a97ab" font-size="8.5" text-anchor="middle">' + INTERVALS[i] + '</text>';
+    s += '<text x="' + (x + bw / 2 - 6) + '" y="' + (H - 28 - hH) + '" fill="#2fd575" font-size="8" text-anchor="middle">' + (bH[i] || '') + '</text>';
+    s += '<text x="' + (x + bw / 2 + 8) + '" y="' + (H - 28 - hA) + '" fill="#4da3ff" font-size="8" text-anchor="middle">' + (bA[i] || '') + '</text>';
+  }
+  s += '<text x="' + pad + '" y="10" fill="#2fd575" font-size="9">■ хозяева</text><text x="' + (pad + 70) + '" y="10" fill="#4da3ff" font-size="9">■ гости</text>';
+  return s + '</svg>';
+}
 
 let activeCard = null;
 /* Единый рендерер модальной карточки: и для сигнала из журнала, и для любого LIVE-матча */
@@ -2081,7 +2265,9 @@ function renderCard(c){
   $('calcOdds').value = c.odds ? c.odds.toFixed(2) : (P ? (100 / P).toFixed(2) : '2.00');
   recalcEV();
   $('mProfile').innerHTML = profileTableHtml(c.profH, c.profA, CFG.depth);
-  $('mMomentum').innerHTML = liveMomentumHtml(c.momentum) + momentumSvg(c.profH, c.profA);
+  $('mMomentum').innerHTML = liveMomentumHtml(c.momentum) +
+    (c.pariDA ? '<div class="dim" style="font-size:10.5px;margin:6px 0 2px">⚔️ Опасные атаки по 15-минуткам · события Pari (точные таймстампы, обновление 10 сек)</div>' + svgPariDA(c.pariDA.bH, c.pariDA.bA) : '') +
+    momentumSvg(c.profH, c.profA);
   loadCardExtras(c); /* травмы/таблица/составы/форма — подгрузка по требованию, не блокирует карточку */
   $('mStats').innerHTML = statsTableHtml(c.statsRows || []);
   $('mTimeline').innerHTML = c.timeline || '<span class="dim">Событий нет</span>';
@@ -2101,6 +2287,7 @@ function showSignalCard(sigId){
     teamH: s.teamH != null ? s.teamH : null, teamA: s.teamA != null ? s.teamA : null,
     leagueId: s.leagueId != null ? s.leagueId : null, seasonYear: s.seasonYear != null ? s.seasonYear : null,
     momentum: s.momentum || null, injuries: Array.isArray(s.injuries) ? s.injuries : null,
+    pariDA: (s.detail && s.detail.pariDA) ? s.detail.pariDA : null,
     teams: s.teams, league: s.league, tier: s.tier, minute: s.minute,
     scoreH: s.scoreH, scoreA: s.scoreA, htScore: s.htScore, line: s.line,
     odds: s.odds, noOdds: s.noOdds, modelP: s.modelP, edgePP: s.edgePP,
@@ -2144,6 +2331,7 @@ function showMatchCard(entry){
     leagueId: (m.season && m.season.league) ? num(m.season.league.id) : null,
     seasonYear: m.season ? num(m.season.year) : null,
     momentum: entry.momentum || null, injuries: null,
+    pariDA: (entry.pari && entry.pari.daBH) ? { bH: entry.pari.daBH, bA: entry.pari.daBA } : null,
     teams: m.homeTeam.name + ' — ' + m.awayTeam.name,
     league: league, tier: R.tier || leagueTier(m), minute: minute,
     scoreH: R.hScore, scoreA: R.aScore, htScore: R.htScore, line: line,
